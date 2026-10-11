@@ -11,6 +11,8 @@ export interface Settings {
   effects: EffectsLevel;
   highlightSame: boolean;
   autoClearNotes: boolean;
+  /** Show the auto-note layer: dim digits the rules still allow, under the player's own notes. */
+  autoNotes: boolean;
   checkMistakes: boolean;
   showTimer: boolean;
   /** Killer: tint cages in alternating colours. */
@@ -29,6 +31,7 @@ export const DEFAULT_SETTINGS: Settings = {
   effects: "normal",
   highlightSame: true,
   autoClearNotes: true,
+  autoNotes: false,
   checkMistakes: true,
   showTimer: true,
   cageTint: true,

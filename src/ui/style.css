@@ -747,11 +747,11 @@ button:disabled {
   color: #fff;
 }
 
-.play.notes-mode .tool.on {
+.play.notes-mode .notes-tool.on {
   color: var(--a2);
 }
 
-.play.notes-mode .tool.on .icon {
+.play.notes-mode .notes-tool.on .icon {
   filter: drop-shadow(0 0 6px var(--a2));
 }
 
@@ -1016,6 +1016,16 @@ button:disabled {
 
 .notes i.on {
   opacity: 1;
+}
+
+/* The auto-note layer: the machine's digits, dim and cooler than the player's. */
+.notes i.auto {
+  opacity: 0.45;
+  color: #7d88aa;
+}
+
+.notes i.auto.match {
+  opacity: 0.85;
 }
 
 .notes i.match {

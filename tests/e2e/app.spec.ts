@@ -680,3 +680,46 @@ test("progress resumes after reload", async ({ page }) => {
   await page.getByTestId("resume-classic").click();
   await expect(page.locator(".stats")).toContainText("Hints 1");
 });
+
+test("killer: Auto notes is a layer — dim digits you can strike, under your own notes, gone again with a tap", async ({ page }) => {
+  await page.goto("/?play=killer-easy");
+  await readBoard(page);
+  const auto = page.getByTestId("tool-auto");
+  await expect(page.locator(".notes i.auto")).toHaveCount(0);
+  await auto.click();
+  await expect(auto).toHaveAttribute("aria-pressed", "true");
+  // A square with some dim digits but not all nine: one to strike, one to add bright.
+  const pick = await page.$$eval(".board .cell", (els) => {
+    for (const el of els) {
+      const ns = [...el.querySelectorAll(".notes i")];
+      const dim = ns.findIndex((n) => n.classList.contains("auto"));
+      const off = ns.findIndex((n) => !n.classList.contains("auto"));
+      if (dim >= 0 && off >= 0) return { cell: Number((el as HTMLElement).dataset.cell), dim: dim + 1, off: off + 1 };
+    }
+    return null;
+  });
+  expect(pick).not.toBeNull();
+  const square = cellLocator(page, pick!.cell);
+  const struck = square.locator(`.notes i:nth-child(${pick!.dim})`);
+  const bright = square.locator(`.notes i:nth-child(${pick!.off})`);
+  await square.click();
+  await page.getByTestId("tool-notes").click();
+  await digitKey(page, pick!.dim).click(); // strike the dim digit: it goes, and no bright note replaces it
+  await expect(struck).not.toHaveClass(/auto/);
+  await expect(struck).not.toHaveClass(/\bon\b/);
+  await digitKey(page, pick!.off).click(); // a digit the layer doesn't show goes in bright
+  await expect(bright).toHaveClass(/\bon\b/);
+  await page.screenshot({ path: "test-results/screens/auto-notes.png" });
+  await auto.click(); // off: the dim digits go, the bright note stays
+  await expect(page.locator(".notes i.auto")).toHaveCount(0);
+  await expect(bright).toHaveClass(/\bon\b/);
+  await auto.click(); // on again: the strike was remembered
+  await expect(struck).not.toHaveClass(/auto/);
+  await digitKey(page, pick!.dim).click(); // tapping a struck digit brings it back, dim
+  await expect(struck).toHaveClass(/auto/);
+  // It's a setting: the next game opens with the layer on.
+  await page.goto("/?play=classic-easy");
+  await readBoard(page);
+  await expect(page.getByTestId("tool-auto")).toHaveAttribute("aria-pressed", "true");
+  expect(await page.locator(".notes i.auto").count()).toBeGreaterThan(0);
+});

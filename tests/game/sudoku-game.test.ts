@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { comboCandidates } from "../../src/engine/candidates";
 import { maskOf } from "../../src/engine/combos";
 import { cellName } from "../../src/engine/geometry";
 import { hintMarks } from "../../src/engine/hints/index";
@@ -275,5 +276,105 @@ describe("SudokuGame", () => {
     expect(h.grid[cell("r1c3")]).toBe(4);
     expect(h.notes[cell("r1c4")]).toBe(maskOf([6]));
     expect(h.elapsedMs).toBe(12345);
+  });
+});
+
+describe("auto-note layer", () => {
+  const withLayer = (p: Puzzle = WIKI) => {
+    const g = new SudokuGame(p);
+    g.settings.autoNotes = true;
+    return g;
+  };
+
+  it("is empty when off; on, each square shows its candidates less what hints proved, strikes and own notes", () => {
+    const g = new SudokuGame(WIKI);
+    const c = cell("r1c3"); // 1, 2 or 4
+    expect(g.layer()[c]).toBe(0);
+    g.settings.autoNotes = true;
+    expect(g.layer()[c]).toBe(maskOf([1, 2, 4]));
+    expect(g.layer()[cell("r1c1")]).toBe(0); // a given
+    g.known[c] = maskOf([1]);
+    expect(g.layer()[c]).toBe(maskOf([2, 4]));
+    g.known[c] = maskOf([1, 2, 4]); // would leave nothing (only a wrong digit does that): not subtracted
+    expect(g.layer()[c]).toBe(maskOf([1, 2, 4]));
+    g.known[c] = 0;
+    g.toggleNote(c, 5); // 5 is in the row, so it's never dim: it goes in bright
+    expect(g.notes[c]).toBe(maskOf([5]));
+    expect(g.layer()[c]).toBe(maskOf([1, 2, 4]));
+    g.place(cell("r1c9"), 2); // the layer follows the board
+    expect(g.layer()[c]).toBe(maskOf([1, 4]));
+  });
+
+  it("killer: the layer is the cage-sum candidates", () => {
+    const g = withLayer(packPuzzle("killer-easy", 0));
+    expect(Array.from(g.layer())).toEqual(Array.from(comboCandidates(g.puzzle, g.grid)));
+  });
+
+  it("tap rules: a bright note comes out, a dim digit is struck, a struck digit comes back, anything else goes in bright", () => {
+    const g = withLayer();
+    const c = cell("r1c3");
+    const events = track(g);
+    g.toggleNote(c, 2); // dim → struck
+    expect(g.hidden[c]).toBe(maskOf([2]));
+    expect(g.notes[c]).toBe(0);
+    expect(g.layer()[c]).toBe(maskOf([1, 4]));
+    expect(events.at(-1)).toEqual({ type: "note", cell: c, digit: 2, on: false });
+    g.toggleNote(c, 2); // struck, still allowed → back, dim
+    expect(g.hidden[c]).toBe(0);
+    expect(g.layer()[c]).toBe(maskOf([1, 2, 4]));
+    expect(events.at(-1)).toEqual({ type: "note", cell: c, digit: 2, on: true });
+    g.toggleNote(c, 5); // not shown → bright
+    expect(g.notes[c]).toBe(maskOf([5]));
+    g.toggleNote(c, 5); // bright → out
+    expect(g.notes[c]).toBe(0);
+    // A strike is one undo step, is saved, and survives the layer being switched off.
+    g.toggleNote(c, 2);
+    g.undo();
+    expect(g.hidden[c]).toBe(0);
+    g.redo();
+    expect(g.hidden[c]).toBe(maskOf([2]));
+    const restored = new SudokuGame(WIKI, JSON.parse(JSON.stringify(g.toJSON())));
+    expect(restored.hidden[c]).toBe(maskOf([2]));
+    g.settings.autoNotes = false;
+    expect(g.layer()[c]).toBe(0);
+    g.toggleNote(c, 2); // layer off: tapping behaves as it always did — a bright note
+    expect(g.notes[c]).toBe(maskOf([2]));
+    expect(g.hidden[c]).toBe(maskOf([2]));
+  });
+
+  it("bulk pencil follows what shows: out of every square when all show it, else in wherever it's missing", () => {
+    const g = withLayer();
+    const a = cell("r1c3"); // 1, 2 or 4
+    const b = cell("r1c4"); // 2 or 6
+    g.toggleNoteMany([a, b, cell("r1c1")], 2); // both dim → both struck; the given is skipped
+    expect(g.hidden[a]).toBe(maskOf([2]));
+    expect(g.hidden[b]).toBe(maskOf([2]));
+    g.toggleNote(b, 2); // b back
+    g.toggleNoteMany([a, b], 2); // shown in one, not all → show in both: a comes back, b stays
+    expect(g.hidden[a]).toBe(0);
+    expect(g.notes[a]).toBe(0);
+    g.toggleNoteMany([a, b], 5); // 5 shows nowhere (it's in the row) → bright in both
+    expect(g.notes[a]).toBe(maskOf([5]));
+    expect(g.notes[b]).toBe(maskOf([5]));
+    g.toggleNoteMany([a, b], 5); // both bright → out of both
+    expect(g.notes[a]).toBe(0);
+    g.undo();
+    expect(g.notes[b]).toBe(maskOf([5]));
+  });
+
+  it("erase and Clear notes reset strikes as well", () => {
+    const g = withLayer();
+    const c = cell("r1c3");
+    g.toggleNote(c, 2);
+    g.toggleNote(cell("r1c4"), 6);
+    g.erase(c);
+    expect(g.hidden[c]).toBe(0);
+    g.undo();
+    expect(g.hidden[c]).toBe(maskOf([2]));
+    g.clearNotes();
+    expect(g.hidden[c]).toBe(0);
+    expect(g.hidden[cell("r1c4")]).toBe(0);
+    g.undo();
+    expect(g.hidden[cell("r1c4")]).toBe(maskOf([6]));
   });
 });

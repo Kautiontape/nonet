@@ -20,6 +20,7 @@ const GROUPS: { title: string; rows: { key: BoolKey; label: string; hint?: strin
     rows: [
       { key: "checkMistakes", label: "Flag mistakes instantly", hint: "Explains why a digit is wrong." },
       { key: "autoClearNotes", label: "Auto-remove notes", hint: "Placing a digit clears the notes it rules out." },
+      { key: "autoNotes", label: "Show auto-notes", hint: "Dim digits the rules still allow; tap one in notes mode to strike it." },
       { key: "highlightSame", label: "Highlight matching digits" },
       { key: "showTimer", label: "Show timer" },
     ],

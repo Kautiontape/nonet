@@ -30,7 +30,7 @@ import { buzz } from "../haptics";
 import { ICONS } from "../icons";
 import { DIFFICULTY_LABEL, MODE_LABEL, mistakeText } from "../messages";
 import { DIGIT_COLORS, MARK_COLORS } from "../palette";
-import { onSettings, settings } from "../settings";
+import { onSettings, settings, updateSettings } from "../settings";
 import { sound } from "../sound";
 import { finishPuzzle, firstTime, loadProgress, recordHint } from "../store";
 import { openLearn } from "./learn";
@@ -163,8 +163,8 @@ class SudokuPlay implements Screen {
       { class: "tools" },
       tool("undo", ICONS.undo, "Undo", () => this.game.undo()),
       tool("erase", ICONS.erase, "Erase", () => this.erase()),
-      tool("notes", ICONS.pencil, "Notes", () => this.toggleNotes()),
-      tool("auto", ICONS.wand, "Auto notes", () => this.autoNotes()),
+      tool("notes", ICONS.pencil, "Notes", () => this.toggleNotes(), "notes-tool"),
+      tool("auto", ICONS.wand, "Auto notes", () => this.toggleAutoNotes()),
       tool("hint", ICONS.bulb, "Hint", () => this.openHint(), "hint-tool"),
     );
 
@@ -263,6 +263,7 @@ class SudokuPlay implements Screen {
     const st = settings();
     this.game.settings.autoClearNotes = st.autoClearNotes;
     this.game.settings.checkMistakes = st.checkMistakes;
+    this.game.settings.autoNotes = st.autoNotes;
   }
 
   private progress(): number {
@@ -276,6 +277,7 @@ class SudokuPlay implements Screen {
     this.board.render({
       grid: g.grid,
       notes: g.notes,
+      auto: g.layer(),
       given: g.given,
       solution: g.solution,
       selected: this.selected,
@@ -292,6 +294,8 @@ class SudokuPlay implements Screen {
     this.tools.notes!.classList.toggle("on", notes);
     this.tools.notes!.setAttribute("aria-pressed", String(this.notesMode));
     this.tools.notes!.querySelector("span")!.textContent = notes ? "Notes on" : "Notes";
+    this.tools.auto!.classList.toggle("on", st.autoNotes);
+    this.tools.auto!.setAttribute("aria-pressed", String(st.autoNotes));
     this.el.classList.toggle("notes-mode", notes);
     const p = this.progress();
     this.progressEl.style.width = `${(p * 100).toFixed(1)}%`;
@@ -499,10 +503,14 @@ class SudokuPlay implements Screen {
     this.render();
   }
 
-  private autoNotes(): void {
-    this.game.autoNotes();
+  /** The auto-note layer on or off. A setting, so it follows the player to the next level. */
+  private toggleAutoNotes(): void {
+    const on = !settings().autoNotes;
+    updateSettings({ autoNotes: on }); // the settings listener redraws
     sound.ui("toggle");
-    toast(this.mode === "killer" ? "Notes filled in — cage sums applied." : "Notes filled with every possible digit.");
+    buzz("note");
+    if (on && firstTime("tip-auto-notes"))
+      toast("Dim digits are what the rules still allow. Tap one in notes mode to strike it; your own notes stay bright.", "info", 6000);
   }
 
   /**
@@ -544,6 +552,7 @@ class SudokuPlay implements Screen {
       e.preventDefault();
       return this.toggleNotes();
     }
+    if (k === "a" || k === "A") return this.toggleAutoNotes();
     if (k === "h" || k === "H") return this.sheet.isOpen ? this.sheet.advance() : this.openHint();
     if ((k === "l" || k === "L") && this.mode === "killer") return this.setLens(LENS_CYCLE[this.lensKind ?? "off"]);
     const moves: Record<string, [number, number]> = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] };
@@ -812,7 +821,6 @@ class SudokuPlay implements Screen {
           storeSaved(this.mode, { difficulty: this.difficulty, entry: encodeSudoku(this.puzzle), state: new SudokuGame(this.puzzle).toJSON() });
           void this.app.play(this.mode, this.difficulty, true);
         }),
-        item("Fill notes", ICONS.wand, () => this.autoNotes()),
         item("Clear notes", ICONS.trash, () => this.game.clearNotes()),
         item("Scores", ICONS.trophy, () => openScores()),
         item("Learn techniques", ICONS.book, () => openLearn()),

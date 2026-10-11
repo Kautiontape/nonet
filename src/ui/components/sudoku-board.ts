@@ -36,6 +36,8 @@ const RADIAL_HOLD_MS = 1500;
 export interface BoardView {
   grid: Uint8Array;
   notes: Uint16Array;
+  /** The auto-note layer: dim digits per cell (all zero, or absent, when it's off). */
+  auto?: Uint16Array;
   given: Uint8Array;
   solution: Uint8Array;
   selected: CellId | null;
@@ -323,17 +325,22 @@ export class SudokuBoard {
       if (d) el.style.setProperty("--dc", DIGIT_COLORS[d]!);
       this.valEls[c]!.textContent = d ? String(d) : "";
       const notes = d ? 0 : v.notes[c]!;
+      const auto = d ? 0 : (v.auto?.[c] ?? 0) & ~notes;
       const ns = this.noteEls[c]!;
       for (let k = 1; k <= 9; k++) {
         const on = (notes & (1 << k)) !== 0;
+        const dim = (auto & (1 << k)) !== 0;
         const n = ns[k - 1]!;
         n.classList.toggle("on", on);
-        n.classList.toggle("match", on && k === hd);
+        n.classList.toggle("auto", dim);
+        n.classList.toggle("match", (on || dim) && k === hd);
         n.className = n.className.replace(/\bm-\w+\b|\bghost\b/g, "").trim();
       }
       el.setAttribute(
         "aria-label",
-        d ? `${cellName(c)}, ${d}${v.given[c] ? ", given" : ""}${wrong ? ", wrong" : ""}` : `${cellName(c)}, empty${notes ? `, notes ${digitsOf(notes).join(" ")}` : ""}`,
+        d
+          ? `${cellName(c)}, ${d}${v.given[c] ? ", given" : ""}${wrong ? ", wrong" : ""}`
+          : `${cellName(c)}, empty${notes ? `, notes ${digitsOf(notes).join(" ")}` : ""}${auto ? `, auto ${digitsOf(auto).join(" ")}` : ""}`,
       );
     }
     // Conflicts: any wrong digit lights up the cells it clashes with.
@@ -517,17 +524,19 @@ export class SudokuBoard {
     const byCell = new Map<CellId, CandidateMark[]>();
     for (const m of marks) byCell.set(m.cell, [...(byCell.get(m.cell) ?? []), m]);
     const v = this.last;
+    // A digit already showing — the player's note, or the auto layer's dim one — needs no ghost.
+    const showing = (n: HTMLElement) => n.classList.contains("on") || n.classList.contains("auto");
     for (const [c, ms] of byCell) {
       if (v?.grid[c]) continue;
       const ns = this.noteEls[c]!;
       const shown = this.hintCand?.[c] ?? 0;
       for (let d = 1; d <= 9; d++) {
         const n = ns[d - 1]!;
-        if (shown & (1 << d) && !n.classList.contains("on")) n.classList.add("ghost");
+        if (shown & (1 << d) && !showing(n)) n.classList.add("ghost");
       }
       for (const m of ms) {
         const n = ns[m.digit - 1]!;
-        if (!n.classList.contains("on")) n.classList.add("ghost");
+        if (!showing(n)) n.classList.add("ghost");
         n.classList.add(`m-${m.role}`);
       }
     }
@@ -537,7 +546,7 @@ export class SudokuBoard {
     for (const m of context) {
       const n = this.noteEls[m.cell]![m.digit - 1]!;
       if (v?.grid[m.cell] || marked.has(m.cell * 10 + m.digit)) continue;
-      if (n.classList.contains("on") || n.classList.contains("ghost")) n.classList.add("m-digit");
+      if (showing(n) || n.classList.contains("ghost")) n.classList.add("m-digit");
     }
   }
 

@@ -20,6 +20,8 @@ export interface Change {
   cell: CellId;
   digit: [number, number];
   notes: [number, number];
+  /** Auto-note digits the player struck out (before, after); absent when a change leaves them alone. */
+  hidden?: [number, number];
 }
 
 interface HistoryEntry {
@@ -41,6 +43,8 @@ export interface SudokuSettings {
   autoClearNotes: boolean;
   /** Flag wrong digits immediately (and count mistakes). */
   checkMistakes: boolean;
+  /** Show the auto-note layer: dim digits the rules still allow, under the player's own notes. */
+  autoNotes: boolean;
 }
 
 export interface SavedSudoku {
@@ -55,6 +59,8 @@ export interface SavedSudoku {
   solved: boolean;
   /** Candidates hints have ruled out (bitmask per cell); older saves don't have it. */
   known?: number[];
+  /** Auto-note digits the player struck out (bitmask per cell); older saves don't have it. */
+  hidden?: number[];
 }
 
 export class SudokuGame {
@@ -66,6 +72,8 @@ export class SudokuGame {
   notes: Uint16Array;
   /** Candidates hints have ruled out — the next hint builds on them, whatever the notes say. */
   known: Uint16Array;
+  /** Auto-note digits the player struck out: the layer leaves them out until they're unstruck or erased. */
+  hidden: Uint16Array;
   elapsedMs = 0;
   mistakes = 0;
   /** Hints applied (rung 4) or otherwise consumed. */
@@ -73,7 +81,7 @@ export class SudokuGame {
   /** How many times each rung (0..4) was revealed. */
   rungs = [0, 0, 0, 0, 0];
   solved = false;
-  settings: SudokuSettings = { autoClearNotes: true, checkMistakes: true };
+  settings: SudokuSettings = { autoClearNotes: true, checkMistakes: true, autoNotes: false };
 
   private undoStack: HistoryEntry[] = [];
   private redoStack: HistoryEntry[] = [];
@@ -90,6 +98,7 @@ export class SudokuGame {
     this.grid = Uint8Array.from(g);
     this.notes = new Uint16Array(81);
     this.known = new Uint16Array(81);
+    this.hidden = new Uint16Array(81);
     this.cageIndex = new Int16Array(81).fill(-1);
     puzzle.cages.forEach((cage, i) => cage.cells.forEach((c) => (this.cageIndex[c] = i)));
     if (saved && saved.puzzleId === puzzle.id && saved.grid.length === 81) {
@@ -103,6 +112,7 @@ export class SudokuGame {
       this.rungs = [...saved.rungs, 0, 0, 0, 0, 0].slice(0, 5);
       this.solved = saved.solved;
       if (saved.known?.length === 81) this.known = Uint16Array.from(saved.known);
+      if (saved.hidden?.length === 81) this.hidden = Uint16Array.from(saved.hidden);
     }
   }
 
@@ -149,11 +159,12 @@ export class SudokuGame {
   // Mutations (each one is a single undoable history entry)
 
   private commit(label: string, changes: Change[]): void {
-    const real = changes.filter((ch) => ch.digit[0] !== ch.digit[1] || ch.notes[0] !== ch.notes[1]);
+    const real = changes.filter((ch) => ch.digit[0] !== ch.digit[1] || ch.notes[0] !== ch.notes[1] || (ch.hidden && ch.hidden[0] !== ch.hidden[1]));
     if (!real.length) return;
     for (const ch of real) {
       this.grid[ch.cell] = ch.digit[1];
       this.notes[ch.cell] = ch.notes[1];
+      if (ch.hidden) this.hidden[ch.cell] = ch.hidden[1];
     }
     this.undoStack.push({ label, changes: real });
     if (this.undoStack.length > 500) this.undoStack.shift();
@@ -241,41 +252,69 @@ export class SudokuGame {
     this.eraseMany([cell]);
   }
 
-  /** Wipe several cells at once — digits and notes; givens stay — as one undo step. */
+  /** Wipe several cells at once — digits, notes and strikes; givens stay — as one undo step. */
   eraseMany(cells: readonly CellId[]): void {
     if (this.solved) return;
-    const hit = cells.filter((c) => !this.given[c] && (this.grid[c] || this.notes[c]));
+    const hit = cells.filter((c) => !this.given[c] && (this.grid[c] || this.notes[c] || this.hidden[c]));
     if (!hit.length) return;
-    this.commit("erase", hit.map((c): Change => ({ cell: c, digit: [this.grid[c]!, 0], notes: [this.notes[c]!, 0] })));
+    this.commit("erase", hit.map((c): Change => ({ cell: c, digit: [this.grid[c]!, 0], notes: [this.notes[c]!, 0], hidden: [this.hidden[c]!, 0] })));
     this.emit({ type: "erase", cells: hit });
   }
 
+  /**
+   * Pencil a digit in or out of a cell, as the player sees it — what you see is what you toggle:
+   * a bright note comes out; a dim auto-note is struck (hidden); a struck digit the layer still
+   * allows comes back dim; anything else goes in as a bright note.
+   */
   toggleNote(cell: CellId, digit: Digit): void {
     if (this.solved || this.grid[cell]) return;
-    const before = this.notes[cell]!;
-    const after = before ^ bit(digit);
-    this.commit("note", [{ cell, digit: [0, 0], notes: [before, after] }]);
-    this.emit({ type: "note", cell, digit, on: (after & bit(digit)) !== 0 });
+    const base = this.layerBase();
+    const shows = ((this.notes[cell]! | this.dimAt(cell, base)) & bit(digit)) !== 0;
+    const ch = this.noteToggle(cell, digit, base, shows ? "off" : "on");
+    if (!ch) return;
+    this.commit("note", [ch]);
+    this.emit({ type: "note", cell, digit, on: !shows });
   }
 
   /**
-   * Pencil a digit into several cells at once (one undo step): if every empty cell already has it,
-   * remove it from all of them; otherwise add it everywhere it's missing.
+   * Pencil a digit into several cells at once (one undo step): if every empty cell already shows
+   * it (bright or dim), take it out of all of them; otherwise show it everywhere it's missing.
    */
   toggleNoteMany(cells: readonly CellId[], digit: Digit): void {
     if (this.solved) return;
     const empty = cells.filter((c) => !this.grid[c]);
     if (!empty.length) return;
+    const base = this.layerBase();
     const b = bit(digit);
-    const remove = empty.every((c) => this.notes[c]! & b);
-    const changes: Change[] = empty.map((c) => ({
-      cell: c,
-      digit: [0, 0],
-      notes: [this.notes[c]!, remove ? this.notes[c]! & ~b : this.notes[c]! | b],
-    }));
+    const shows = (c: CellId) => ((this.notes[c]! | this.dimAt(c, base)) & b) !== 0;
+    const want = empty.every(shows) ? "off" : "on";
+    const changes = empty.map((c) => this.noteToggle(c, digit, base, want)).filter((x): x is Change => !!x);
+    if (!changes.length) return;
     this.commit("notes", changes);
-    this.emit({ type: "notes", cells: empty });
-    this.emit({ type: "note", cell: empty[0]!, digit, on: !remove });
+    this.emit({ type: "notes", cells: changes.map((ch) => ch.cell) });
+    this.emit({ type: "note", cell: changes[0]!.cell, digit, on: want === "on" });
+  }
+
+  /**
+   * The change that makes `digit` show ("on") or not ("off") in `cell`, following the tap rules;
+   * null when it already does (or doesn't).
+   */
+  private noteToggle(cell: CellId, digit: Digit, base: Uint16Array, want: "on" | "off"): Change | null {
+    const b = bit(digit);
+    const notes = this.notes[cell]!;
+    const hidden = this.hidden[cell]!;
+    const hid: [number, number] = [hidden, hidden];
+    const ch: Change = { cell, digit: [0, 0], notes: [notes, notes], hidden: hid };
+    if (want === "off") {
+      if (notes & b) ch.notes[1] = notes & ~b;
+      else if (this.dimAt(cell, base) & b) hid[1] = hidden | b;
+      else return null;
+    } else {
+      if ((notes | this.dimAt(cell, base)) & b) return null;
+      if (hidden & b && base[cell]! & b) hid[1] = hidden & ~b;
+      else ch.notes[1] = notes | b;
+    }
+    return ch;
   }
 
   /** Candidates as a player would pencil them: sudoku rules (plus cage sums in killer). */
@@ -283,20 +322,42 @@ export class SudokuGame {
     return this.kind === "killer" ? comboCandidates(this.puzzle, this.grid) : basicCandidates(this.puzzle, this.grid);
   }
 
-  /** Fill every empty cell's notes with its candidates. */
-  autoNotes(): void {
-    if (this.solved) return;
+  /**
+   * What the auto-note layer rests on: the candidates, less what hints have proved (unless that
+   * would leave a square empty — only a wrong digit does that). Empty when the layer is off.
+   */
+  private layerBase(): Uint16Array {
+    const out = new Uint16Array(81);
+    if (!this.settings.autoNotes) return out;
     const cand = this.candidatesNow();
-    const changes: Change[] = [];
-    for (let c = 0; c < 81; c++)
-      if (!this.grid[c]) changes.push({ cell: c, digit: [0, 0], notes: [this.notes[c]!, cand[c]!] });
-    this.commit("auto-notes", changes);
-    this.emit({ type: "notes", cells: changes.map((ch) => ch.cell) });
+    for (let c = 0; c < 81; c++) {
+      if (this.grid[c]) continue;
+      out[c] = cand[c]! & ~this.known[c]! || cand[c]!;
+    }
+    return out;
   }
 
+  /** The dim digits of one square: the layer's base, less the player's strikes and own notes. */
+  private dimAt(cell: CellId, base: Uint16Array): number {
+    return base[cell]! & ~this.hidden[cell]! & ~this.notes[cell]!;
+  }
+
+  /**
+   * The auto-note layer: the dim digits per square — what the rules still allow, less what hints
+   * proved, what the player struck and what's already in their notes. Never stored; it recomputes
+   * from the board, so placing a digit narrows it on its own. All zeros when the layer is off.
+   */
+  layer(): Uint16Array {
+    const base = this.layerBase();
+    for (let c = 0; c < 81; c++) base[c] = this.dimAt(c, base);
+    return base;
+  }
+
+  /** Clear the player's notes and strikes everywhere, as one undo step. */
   clearNotes(): void {
     const changes: Change[] = [];
-    for (let c = 0; c < 81; c++) if (this.notes[c]) changes.push({ cell: c, digit: [this.grid[c]!, this.grid[c]!], notes: [this.notes[c]!, 0] });
+    for (let c = 0; c < 81; c++)
+      if (this.notes[c] || this.hidden[c]) changes.push({ cell: c, digit: [this.grid[c]!, this.grid[c]!], notes: [this.notes[c]!, 0], hidden: [this.hidden[c]!, 0] });
     this.commit("clear-notes", changes);
     this.emit({ type: "notes", cells: changes.map((ch) => ch.cell) });
   }
@@ -309,6 +370,7 @@ export class SudokuGame {
     for (const ch of e.changes) {
       this.grid[ch.cell] = ch.digit[0];
       this.notes[ch.cell] = ch.notes[0];
+      if (ch.hidden) this.hidden[ch.cell] = ch.hidden[0];
     }
     this.redoStack.push(e);
     this.solved = false;
@@ -322,6 +384,7 @@ export class SudokuGame {
     for (const ch of e.changes) {
       this.grid[ch.cell] = ch.digit[1];
       this.notes[ch.cell] = ch.notes[1];
+      if (ch.hidden) this.hidden[ch.cell] = ch.hidden[1];
     }
     this.undoStack.push(e);
     this.emit({ type: "history", kind: "redo", cells: e.changes.map((c) => c.cell) });
@@ -425,6 +488,7 @@ export class SudokuGame {
       rungs: [...this.rungs],
       solved: this.solved,
       known: Array.from(this.known),
+      hidden: Array.from(this.hidden),
     };
   }
 }
