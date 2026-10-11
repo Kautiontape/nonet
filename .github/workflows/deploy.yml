@@ -5,16 +5,27 @@ on:
 jobs:
   deploy:
     runs-on: [self-hosted, ktn]
+    # Every run step works in the live service dir. A `cd` in one step does not carry
+    # to the next, so set the directory once here. The host nginx serves
+    # nonet.kautiontape.com from its dist/ and terminates TLS.
+    defaults:
+      run:
+        working-directory: /opt/services/nonet
     steps:
       # actions/setup-node provisions Node onto PATH for the runner's job working
       # directory. ktn's system Node is 18, too old for Vite 8 / Vitest 5.
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      # The host nginx serves nonet.kautiontape.com from dist/ and terminates TLS.
-      - name: Deploy
-        run: |
-          cd /opt/services/nonet
-          git pull origin main
-          npm ci
-          npm run build
+      - name: Pull latest
+        run: git pull origin main
+      - name: Install dependencies
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm test
+      # Build last: if the typecheck or the tests fail, the job stops here and the
+      # old dist/ stays in place, so a broken build never reaches nginx.
+      - name: Build
+        run: npm run build
