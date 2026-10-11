@@ -1,0 +1,44 @@
+name: Deploy to beta
+# Every push to main becomes the beta at nonet.kautiontape.com/beta/: a second checkout on ktn,
+# built with VITE_CHANNEL=beta so it calls itself "Nonet Beta". Production (the root) only moves
+# on a v* tag — see deploy.yml.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+concurrency:
+  group: deploy-beta
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: [self-hosted, ktn]
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Make sure the beta checkout exists
+        # A clone beside production, from the same remote (so it uses the same access).
+        run: |
+          if [ ! -d /opt/services/nonet-beta/.git ]; then
+            git clone --origin origin "$(git -C /opt/services/nonet remote get-url origin)" /opt/services/nonet-beta
+          fi
+      - name: Check out the pushed commit
+        working-directory: /opt/services/nonet-beta
+        run: |
+          git fetch --prune origin
+          git checkout --force --detach "${{ github.sha }}"
+      - name: Install dependencies
+        working-directory: /opt/services/nonet-beta
+        run: npm ci
+      - name: Typecheck
+        working-directory: /opt/services/nonet-beta
+        run: npm run typecheck
+      - name: Unit tests
+        working-directory: /opt/services/nonet-beta
+        run: npm test
+      # Build last, so a broken build never replaces the old dist/ nginx is serving.
+      - name: Build
+        working-directory: /opt/services/nonet-beta
+        env:
+          VITE_CHANNEL: beta
+        run: npm run build

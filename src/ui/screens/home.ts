@@ -105,7 +105,7 @@ export function createHome(app: App): Screen {
     h(
       "header",
       { class: "home-head" },
-      h("h1", { class: "wordmark", "aria-label": "Nonet" }, h("span", null, "NONET")),
+      h("h1", { class: "wordmark", "aria-label": "Nonet" }, h("span", null, "NONET"), import.meta.env.VITE_CHANNEL === "beta" ? h("i", { class: "channel" }, "beta") : null),
       h("p", { class: "tagline" }, "Sudoku · Killer · Queens — with a coach that teaches"),
       streak,
     ),

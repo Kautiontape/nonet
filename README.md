@@ -66,10 +66,32 @@ Queens puzzles grow colour regions around a valid queen placement and repair unt
 
 ## Deploying
 
-Live at [nonet.kautiontape.com](https://nonet.kautiontape.com). Push to `main`: a
-self-hosted GitHub Actions runner on **ktn** pulls into `/opt/services/nonet`, runs
-`npm ci && npm run build`, and the host nginx serves `dist/` (`.github/workflows/deploy.yml`).
-Pull requests run `npm run check` on GitHub's runners (`.github/workflows/ci.yml`).
+Two copies on one host, both built by a self-hosted GitHub Actions runner on **ktn** after
+`npm ci`, the typecheck and the unit tests (a failing build leaves the old `dist/` in place):
+
+- **Beta** — [nonet.kautiontape.com/beta/](https://nonet.kautiontape.com/beta/). Every push to
+  `main` checks that commit out in `/opt/services/nonet-beta` and builds it with
+  `VITE_CHANNEL=beta`, so it calls itself "Nonet Beta" (title, manifest, a tag on the home
+  screen) and installs beside the real app (`.github/workflows/deploy-beta.yml`). The workflow
+  clones that directory from production's remote if it isn't there yet.
+- **Production** — [nonet.kautiontape.com](https://nonet.kautiontape.com). Moves only on a
+  release: push a tag like `v0.1.0` (`git tag v0.1.0 && git push origin v0.1.0`, or publish a
+  GitHub Release), and the runner checks that tag out in `/opt/services/nonet` and builds it
+  (`.github/workflows/deploy.yml`; it can also be run by hand from the Actions tab).
+
+The host nginx serves `/opt/services/nonet/dist/` at the root and needs a block for the beta:
+
+```nginx
+location /beta/ {
+    alias /opt/services/nonet-beta/dist/;
+    try_files $uri $uri/ /beta/index.html;
+}
+```
+
+The build uses relative paths, so the same `dist/` works from either path. Each copy registers
+its own service worker (`/sw.js`, `/beta/sw.js`): a worker only answers requests inside its scope
+and keeps a cache of its own, so the beta never feeds production stale pages or the other way
+round. Pull requests run `npm run check` on GitHub's runners (`.github/workflows/ci.yml`).
 
 ## Docs
 
