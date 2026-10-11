@@ -378,3 +378,63 @@ describe("auto-note layer", () => {
     expect(g.hidden[cell("r1c4")]).toBe(maskOf([6]));
   });
 });
+
+describe("hints with the auto-note layer on", () => {
+  const sumStep = (s: Step) => s.technique === "cage-combos" && (s.explain as { basis?: string }).basis === "sum";
+
+  it("count the layer as known: the opening round skips the cage sums the layer already shows", () => {
+    const p = packPuzzle("killer-expert", 1);
+    const plain = new SudokuGame(p).hint();
+    expect([...(plain.prior ?? []), plain.step!].some(sumStep)).toBe(true); // what it re-taught before
+    const g = new SudokuGame(p);
+    g.settings.autoNotes = true;
+    const h = g.hint();
+    expect(h.kind).toBe("step");
+    expect([...(h.prior ?? []), h.step!].some(sumStep)).toBe(false);
+    const layer = comboCandidates(p, g.grid);
+    for (let c = 0; c < 81; c++) expect(g.hintCandidates()[c]! & ~layer[c]!).toBe(0); // pencils nothing the layer rules out
+    expect(g.known.every((k) => k === 0)).toBe(true); // and nothing is stored
+    g.settings.autoNotes = false;
+    expect(Array.from(g.effectiveKnown())).toEqual(Array.from(g.known));
+  });
+
+  it("applying a narrowing step writes no notes into note-less squares: the layer narrows instead", () => {
+    const g = new SudokuGame(WIKI);
+    g.toggleNote(cell("r1c4"), 2); // the player's own notes, pencilled before the layer went on
+    g.toggleNote(cell("r1c4"), 6);
+    g.settings.autoNotes = true;
+    const step = {
+      technique: "pointing",
+      tier: 2,
+      rating: 2,
+      placements: [],
+      eliminations: [
+        { cell: cell("r1c3"), digit: 1 },
+        { cell: cell("r1c4"), digit: 2 },
+      ],
+      focus: { cells: [], cages: [], houses: [] },
+      explain: {},
+      marks: [{ cell: cell("r2c3"), digit: 2, role: "key" }],
+    } as unknown as Step;
+    g.applyHint({ kind: "step", title: "Pointing", ladder: { where: "", what: "", why: [], do: "" }, step, prior: [] });
+    expect(g.known[cell("r1c3")]).toBe(maskOf([1]));
+    expect(g.notes[cell("r1c3")]).toBe(0); // nothing written…
+    expect(g.layer()[cell("r1c3")]).toBe(maskOf([2, 4])); // …the layer shows the 1 gone
+    expect(g.notes[cell("r2c3")]).toBe(0);
+    expect(g.notes[cell("r1c4")]).toBe(maskOf([6])); // own notes keep what's still possible
+  });
+
+  it("solving a killer on hints alone works with the layer on, and never leaves a note the notes check would flag", () => {
+    for (const [file, i] of [["killer-hard", 3], ["killer-expert", 1]] as const) {
+      const g = new SudokuGame(packPuzzle(file, i));
+      g.settings.autoNotes = true;
+      for (let k = 0; k < 400 && !g.solved; k++) {
+        const h = g.hint();
+        expect(h.kind, `${file} #${i}`).toBe("step");
+        g.applyHint(h);
+        for (let c = 0; c < 81; c++) if (g.notes[c]) expect(g.notes[c]! & (1 << g.solution[c]!), `${file} ${cellName(c)}`).not.toBe(0);
+      }
+      expect(g.solved, `${file} #${i}`).toBe(true);
+    }
+  });
+});

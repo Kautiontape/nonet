@@ -416,12 +416,27 @@ export class SudokuGame {
   // Hints
 
   hint(): SudokuHint {
-    return sudokuHint({ puzzle: this.puzzle, grid: this.grid, notes: this.notes, solution: this.solution, known: this.known });
+    return sudokuHint({ puzzle: this.puzzle, grid: this.grid, notes: this.notes, solution: this.solution, known: this.effectiveKnown() });
+  }
+
+  /**
+   * What hints may take as known: what earlier hints proved, plus — with the auto-note layer on —
+   * everything the layer rules out. The layer comes from the rules, not the player, so that's
+   * sound; and it isn't stored, so turning the layer off leaves hints in step with what's shown.
+   * (In classic the layer is the basic candidates, which hints start from anyway.)
+   */
+  effectiveKnown(): Uint16Array {
+    const out = Uint16Array.from(this.known);
+    if (!this.settings.autoNotes || this.kind !== "killer") return out;
+    const basic = basicCandidates(this.puzzle, this.grid);
+    const layer = this.candidatesNow();
+    for (let c = 0; c < 81; c++) if (!this.grid[c]) out[c] = out[c]! | (basic[c]! & ~layer[c]!);
+    return out;
   }
 
   /** The candidates a hint pencils: what a note may hold, minus what hints have ruled out. */
   hintCandidates(): Uint16Array {
-    return shownCandidates(this.puzzle, this.grid, this.known);
+    return shownCandidates(this.puzzle, this.grid, this.effectiveKnown());
   }
 
   recordRung(rung: number): void {
@@ -444,13 +459,15 @@ export class SudokuGame {
       for (const s of [...(h.prior ?? []), h.step]) for (const e of s.eliminations) this.known[e.cell]! |= bit(e.digit);
       for (const p of h.step.placements) placed.push(p);
       // A round on the way to a digit pencils in what it leaves, in the squares it marks: notes keep
-      // the digits still possible (a square with none gets the hint's candidates).
+      // the digits still possible. A square with none gets the hint's candidates — unless the
+      // auto-note layer is on: it narrows by itself now that `known` has grown.
       if (!h.step.placements.length) {
         const cand = this.hintCandidates();
         for (const c of new Set(hintMarks(h).map((m) => m.cell))) {
           if (this.grid[c]) continue;
           const ch = get(c);
-          ch.notes[1] = (ch.notes[0] & cand[c]!) || cand[c]!;
+          if (ch.notes[0]) ch.notes[1] = (ch.notes[0] & cand[c]!) || cand[c]!;
+          else if (!this.settings.autoNotes) ch.notes[1] = cand[c]!;
         }
       }
     } else if (h.fix) {
