@@ -17,7 +17,7 @@ import { loadSudokuPack, pickNext } from "../../game/packs";
 import { SudokuGame, type GameEvent, type SavedSudoku } from "../../game/sudoku-game";
 import { clearSaved, loadSaved, storeSaved, type App, type Screen } from "../app";
 import { refNodes } from "../cell-refs";
-import { HintSheet } from "../components/hint-sheet";
+import { HintSheet, type OpenOptions } from "../components/hint-sheet";
 import { Numpad } from "../components/numpad";
 import { SudokuBoard } from "../components/sudoku-board";
 import { showResult } from "../components/result-banner";
@@ -64,7 +64,12 @@ class SudokuPlay implements Screen {
   private board: SudokuBoard;
   private numpad: Numpad;
   private sheet: HintSheet;
+  /** The hint on the sheet: a hint of its own, or the current step of `route`. */
   private hint: SudokuHint | null = null;
+  /** A route being taught a step at a time, and where we are in it. */
+  private route: SudokuHint[] | null = null;
+  private routeAt = 0;
+  private routeTarget: CellId | null = null;
   private selected: CellId | null = null;
   /** Cells selected by dragging; digit taps pencil into all of them. */
   private multi: CellId[] = [];
@@ -731,10 +736,25 @@ class SudokuPlay implements Screen {
       this.sheet.advance();
       return;
     }
-    this.hint = this.game.hint();
+    const h = this.game.hint();
+    this.route = h.route ?? null;
+    this.routeAt = 0;
+    this.routeTarget = h.target ?? null;
+    this.hint = h.route ? h.route[0]! : h;
     clearToast();
     flip(this.board.el, () => this.el.classList.add("hint-open"));
-    this.sheet.open(this.hint);
+    this.sheet.open(this.hint, this.routeOptions(1));
+  }
+
+  /** How to open the sheet for the current step of a route (nothing special for a lone hint). */
+  private routeOptions(startRung: number): OpenOptions {
+    const route = this.route;
+    if (!route || this.routeTarget === null) return {};
+    const already = !!route[this.routeAt]!.already;
+    return {
+      startRung: already ? 3 : startRung, // already in the notes: straight to the one-line why
+      route: { step: this.routeAt + 1, of: route.length, target: cellName(this.routeTarget), already },
+    };
   }
 
   private onRung(r: number): void {
@@ -755,27 +775,39 @@ class SudokuPlay implements Screen {
     this.render();
   }
 
+  /** Apply the hint on the sheet. In a route that's one step: the sheet then moves on to the next. */
   private applyHint(): void {
     const hint = this.hint;
     if (!hint) return;
-    if (hint.technique) recordHint(hint.technique);
-    this.closeHint();
+    if (hint.technique && !hint.already) recordHint(hint.technique);
+    const next = this.route?.[this.routeAt + 1] ?? null;
+    const target = this.routeTarget;
+    if (next) this.sheet.close();
+    else this.closeHint();
     this.game.applyHint(hint);
-    if (hint.step && !hint.step.placements.length) {
-      // A round on the way to a digit: no digit lands, so spark where it struck candidates and say
-      // what it pencilled in.
+    if (hint.step && !hint.step.placements.length && !hint.already) {
+      // A narrowing step: no digit lands, so spark where it struck candidates.
       for (const e of hint.step.eliminations) {
         const p = this.board.center(e.cell);
         this.app.fx.burst(p.x, p.y, MARK_COLORS.elim!, { count: 5, speed: 90, size: 5, life: 0.5 });
       }
-      toast(hint.ladder.do, "good", 5200);
-      this.render();
     }
+    if (next) {
+      this.routeAt++;
+      this.hint = next;
+      this.sheet.open(next, this.routeOptions(2));
+    } else if (target !== null && hint.step && !hint.step.placements.length) {
+      toast(`Route marked. Hint again for ${cellName(target)}.`, "good", 5200);
+    }
+    this.render();
   }
 
   private closeHint(): void {
     this.sheet.close();
     this.hint = null;
+    this.route = null;
+    this.routeAt = 0;
+    this.routeTarget = null;
     flip(this.board.el, () => this.el.classList.remove("hint-open"));
     this.board.showHint(null, 0, null);
   }

@@ -466,52 +466,72 @@ test("killer: a hint goes straight for a digit and places it", async ({ page }) 
   await expect(page.locator(".board .cell.filled")).toHaveCount(1);
 });
 
-test("killer: a round toward a digit pencils only the squares it names, and Apply writes those notes", async ({ page }) => {
-  // A fresh profile opens killer-medium-1, the board from the bug report: after two digits come
-  // three rounds of narrowing on the way to r1c3, the last ending with 9 pointing along row 2.
+test("killer: a route is taught a step at a time — Apply pencils that step's squares and the sheet moves on to the next", async ({ page }) => {
+  // A fresh profile opens killer-medium-1: after two digits comes a route of narrowing steps on
+  // the way to r1c3, the last of them 9 pointing along row 2.
   await page.goto("/?play=killer-medium");
   await readBoard(page);
   const sheet = page.getByTestId("hint-sheet");
+  const pill = page.getByTestId("hint-route");
   /** Each square's notes, as the player sees them (hint pencils aside). */
   const readNotes = () =>
     page.$$eval(".board .cell", (els) =>
       Object.fromEntries(els.map((el) => [(el as HTMLElement).dataset.cell!, [...el.querySelectorAll(".notes i")].flatMap((n, k) => (n.classList.contains("on") ? [k + 1] : []))])),
     );
-  let rounds = 0;
-  for (let i = 0; i < 5; i++) {
+  const hintsUsed = async () => Number(/Hints (\d+)/.exec(await page.locator(".stats").innerText())![1]);
+  let routes = 0;
+  for (let i = 0; i < 6 && !routes; i++) {
     await page.getByTestId("tool-hint").click();
-    await page.getByTestId("hint-next").click(); // → what
-    const round = /on the way to r\dc\d/.test(await sheet.locator(".rung-2").innerText());
-    await page.getByTestId("hint-next").click(); // → why
-    await expect(page.locator(".board.hinting")).toHaveCount(1);
-    // Each square showing any pencil, the hint's or the player's: whether the text names it, whether
-    // the hint pencilled it, and the digits left unstruck.
-    const drawn = await page.$$eval(".board .cell", (els) =>
-      els.flatMap((el) => {
-        const notes = [...el.querySelectorAll(".notes i")].map((n, k) => ({
-          d: k + 1,
-          shown: n.matches(".on, .ghost, [class*='m-']") && getComputedStyle(n).visibility !== "hidden",
-          struck: n.matches(".m-elim"),
-        }));
-        if (!notes.some((x) => x.shown)) return [];
-        const keep = notes.filter((x) => x.shown && !x.struck).map((x) => x.d);
-        const hinted = !!el.querySelector(".notes i.ghost, .notes i[class*='m-']");
-        return [{ cell: String((el as HTMLElement).dataset.cell), named: el.classList.contains("h-ref"), hinted, keep }];
-      }),
-    );
-    expect(drawn.filter((x) => !x.named)).toEqual([]); // no pencils in squares the text doesn't name
-    if (round) await page.screenshot({ path: "test-results/screens/hint-round.png" });
-    const before = await readNotes();
-    await page.getByTestId("hint-next").click(); // → apply
-    await expect(sheet).not.toHaveClass(/open/);
-    if (!round) continue;
-    rounds++;
-    // The notes become what the hint drew, less what it struck — in its squares and nowhere else.
-    const after = await readNotes();
-    const expected = { ...before, ...Object.fromEntries(drawn.filter((x) => x.hinted).map((x) => [x.cell, x.keep])) };
-    expect(after).toEqual(expected);
+    await expect(sheet).toHaveClass(/open/);
+    if (!(await pill.isVisible())) {
+      for (let r = 0; r < 3; r++) await page.getByTestId("hint-next").click(); // a lone hint: climb and apply
+      await expect(sheet).not.toHaveClass(/open/);
+      continue;
+    }
+    routes++;
+    const of = Number(/of (\d+)/.exec(await pill.innerText())![1]);
+    expect(of).toBeGreaterThan(1);
+    await expect(sheet.locator(".rung-1")).toContainText("No digit is certain yet.");
+    for (let step = 1; step <= of; step++) {
+      await expect(pill).toContainText(`Step ${step} of ${of} · toward r1c3`);
+      const used = await hintsUsed();
+      while (!(await sheet.locator(".rung-3").count())) await page.getByTestId("hint-next").click(); // → why
+      await expect(page.locator(".board.hinting")).toHaveCount(1);
+      // Each square showing any pencil, the hint's or the player's: whether the text names it, whether
+      // the hint pencilled it, and the digits left unstruck.
+      const drawn = await page.$$eval(".board .cell", (els) =>
+        els.flatMap((el) => {
+          const notes = [...el.querySelectorAll(".notes i")].map((n, k) => ({
+            d: k + 1,
+            shown: n.matches(".on, .ghost, [class*='m-']") && getComputedStyle(n).visibility !== "hidden",
+            struck: n.matches(".m-elim"),
+          }));
+          if (!notes.some((x) => x.shown)) return [];
+          const keep = notes.filter((x) => x.shown && !x.struck).map((x) => x.d);
+          const hinted = !!el.querySelector(".notes i.ghost, .notes i[class*='m-']");
+          return [{ cell: String((el as HTMLElement).dataset.cell), named: el.classList.contains("h-ref"), hinted, keep }];
+        }),
+      );
+      expect(drawn.filter((x) => !x.named)).toEqual([]); // no pencils in squares the text doesn't name
+      if (step === 1) await page.screenshot({ path: "test-results/screens/hint-route.png" });
+      const before = await readNotes();
+      const filled = await page.locator(".board .cell.filled").count();
+      await page.getByTestId("hint-next").click(); // → apply this step
+      await expect(page.locator(".stats")).toContainText(`Hints ${used + 1}`); // one hint per step taken
+      if ((await page.locator(".board .cell.filled").count()) === filled) {
+        // A narrowing step: the notes become what it drew, less what it struck — in its squares and nowhere else.
+        const expected = { ...before, ...Object.fromEntries(drawn.filter((x) => x.hinted).map((x) => [x.cell, x.keep])) };
+        expect(await readNotes()).toEqual(expected);
+      }
+      if (step < of) {
+        // The next step opens straight at "What".
+        await expect(sheet).toHaveClass(/open/);
+        await expect(sheet.locator(".rung-2")).toHaveCount(1);
+        await expect(sheet.locator(".rung-3")).toHaveCount(0);
+      } else await expect(sheet).not.toHaveClass(/open/);
+    }
   }
-  expect(rounds).toBe(3);
+  expect(routes).toBe(1);
 });
 
 test("queens: tap toggles ✕, double-tap makes a queen, hold clears; clashes are explained; hints solve it", async ({ page }) => {

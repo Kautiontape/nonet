@@ -3,6 +3,8 @@
  *   1 Where → 2 What (technique named) → 3 Why (full reasoning, board lights up) → 4 Do (apply).
  * Mistake / notes hints climb the same ladder, ending in a fix instead of a step.
  * Every square the text names ("r9c8") is coloured, and the board rings it in the same colour.
+ * A route (several steps toward a digit) is shown one step at a time: a pill in the header says
+ * which step this is and where the route leads, and the screen reopens the sheet for the next.
  */
 import type { HintCommon } from "../../engine/hint-types";
 import { TIER_NAMES } from "../../engine/hint-types";
@@ -25,18 +27,38 @@ export interface HintSheetHandlers {
 
 const RUNG_LABELS = ["", "Where", "What", "Why", "Do"];
 
+/** Where a hint sits in a route, for the pill in the header. */
+export interface RouteInfo {
+  /** 1-based. */
+  step: number;
+  of: number;
+  /** The square the route leads to, as the player sees it named ("r5c6"). */
+  target: string;
+  /** This step's result was already in the player's notes: shown collapsed. */
+  already?: boolean;
+}
+
+export interface OpenOptions {
+  /** The rung to open at (1 by default): later steps of a route skip straight to "What". */
+  startRung?: number;
+  route?: RouteInfo;
+}
+
 export class HintSheet {
   readonly el: HTMLElement;
   private body: HTMLElement;
   private actions: HTMLElement;
   private titleEl: HTMLElement;
   private badge: HTMLElement;
+  private routeEl: HTMLElement;
   private hint: HintCommon | null = null;
+  private route: RouteInfo | null = null;
   private rung = 0;
 
   constructor(private handlers: HintSheetHandlers) {
     this.titleEl = h("div", { class: "hs-title" });
     this.badge = h("div", { class: "hs-badge" });
+    this.routeEl = h("div", { class: "hs-route", "data-testid": "hint-route" });
     const close = h("button", { class: "icon-btn", type: "button", "aria-label": "Close hint", onclick: () => this.handlers.onClose() }, svgIcon(ICONS.close));
     this.body = h("div", { class: "hs-body" });
     this.actions = h("div", { class: "hs-actions" });
@@ -44,7 +66,7 @@ export class HintSheet {
       "section",
       { class: "hint-sheet", role: "dialog", "aria-label": "Hint", "data-testid": "hint-sheet" },
       h("div", { class: "hs-grip" }),
-      h("header", { class: "hs-head" }, h("div", { class: "hs-icon" }, svgIcon(ICONS.bulb)), h("div", { class: "hs-heading" }, this.titleEl, this.badge), close),
+      h("header", { class: "hs-head" }, h("div", { class: "hs-icon" }, svgIcon(ICONS.bulb)), h("div", { class: "hs-heading" }, this.routeEl, this.titleEl, this.badge), close),
       this.body,
       this.actions,
     );
@@ -73,9 +95,10 @@ export class HintSheet {
     return this.rung;
   }
 
-  open(hint: HintCommon): void {
+  open(hint: HintCommon, opts: OpenOptions = {}): void {
     this.hint = hint;
-    this.rung = 0;
+    this.route = opts.route ?? null;
+    this.rung = Math.max(0, (opts.startRung ?? 1) - 1);
     this.el.classList.add("open");
     this.el.inert = false;
     this.el.dataset.kind = hint.kind;
@@ -86,6 +109,7 @@ export class HintSheet {
     this.el.classList.remove("open");
     this.el.inert = true;
     this.hint = null;
+    this.route = null;
     this.rung = 0;
   }
 
@@ -105,6 +129,10 @@ export class HintSheet {
     this.titleEl.textContent = named ? hint.title : "Hint";
     this.badge.textContent = hint.kind === "step" && r >= 2 && hint.tier ? `${TIER_NAMES[hint.tier] ?? ""} · tier ${hint.tier}` : hint.kind === "mistake" ? "Fix first" : hint.kind === "notes" ? "Notes check" : "";
     this.badge.style.setProperty("--tier", String(hint.tier ?? 0));
+    const route = this.route;
+    this.routeEl.classList.toggle("on", !!route);
+    this.routeEl.textContent = route ? `Step ${route.step} of ${route.of} · ${route.already ? "already in your notes" : `toward ${route.target}`}` : "";
+    const already = !!route?.already;
 
     const rows: HTMLElement[] = [];
     const ladder = hint.ladder;
@@ -130,7 +158,7 @@ export class HintSheet {
     if (hint.technique && r >= 2)
       buttons.push(h("button", { class: "btn ghost", type: "button", onclick: () => this.handlers.onLearn(hint.technique!) }, svgIcon(ICONS.book), "Learn"));
     if (r < 4 && hint.kind !== "solved") {
-      const next = ["", "Which technique?", "Why does it work?", hint.kind === "step" ? "Apply it" : "Fix it"][r]!;
+      const next = ["", "Which technique?", "Why does it work?", already ? "Got it" : hint.kind === "step" ? "Apply it" : "Fix it"][r]!;
       buttons.push(
         h(
           "button",
@@ -140,7 +168,7 @@ export class HintSheet {
         ),
       );
     } else if (r >= 4 && hint.kind !== "solved") {
-      buttons.push(h("button", { class: "btn primary", type: "button", "data-testid": "hint-apply", onclick: () => this.handlers.onApply() }, svgIcon(ICONS.check), "Apply"));
+      buttons.push(h("button", { class: "btn primary", type: "button", "data-testid": "hint-apply", onclick: () => this.handlers.onApply() }, svgIcon(ICONS.check), already ? "Next" : "Apply"));
     }
     this.actions.replaceChildren(...buttons);
   }

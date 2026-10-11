@@ -33,14 +33,19 @@ Easy / Medium / Hard / Expert per mode, graded by the hardest technique the logi
 ## 2. Core play
 
 - Sudoku: tap cell → tap digit. Notes mode toggle; **hold a digit on the pad = light that digit up
-  across the grid** (places nothing; only a tap places). Erase, undo/redo (unlimited), auto-notes
-  (killer auto-notes respect cage sums). Drag across cells — or Shift / Ctrl / ⌘-click — to
+  across the grid** (places nothing; only a tap places). Erase, undo/redo (unlimited). Drag across cells — or Shift / Ctrl / ⌘-click — to
   select several; a digit then pencils into all of them (or comes out of all, if all have it),
   and Erase wipes them all (digits and notes), each as one undo step. A cell acts on release, not
   on press: pressing the selected cell to start a drag never pencils anything, while a plain tap
   on it repeats the last digit. **Hold an empty square** (a deliberate ~1.5 s press, one knob in
   `sudoku-board.ts`) and a wheel of digit dots floats around it; flick toward one and let go to
   enter it — as an answer or a note, following the mode — or release near the centre to cancel.
+- **Auto notes** is a layer, not a fill: dim digits under your own notes, showing what the rules
+  still allow in every empty square (cage sums applied in killer), recomputed as you play. What
+  you see is what you toggle: in notes mode, tap a dim digit to strike it, tap a struck digit to
+  bring it back, and a digit the layer doesn't show goes in as your own bright note. Your notes
+  take precedence in a square; Erase clears its strikes too. The layer is a setting (toolbar
+  button or **A**), so it follows you to the next level, and strikes are saved with the game.
 - Placing a digit auto-removes it from notes in the same row/col/box/**cage**, and (killer) takes
   out of the cage's other notes any digit its remaining sum no longer allows (setting).
 - Highlights: selected cell, its peers, its cage, every cell with the same digit, matching notes.
@@ -67,7 +72,7 @@ Easy / Medium / Hard / Expert per mode, graded by the hardest technique the logi
   too; Space or N toggles Notes; arrows move (wrapping), Shift+arrow — like
   Shift / Ctrl / ⌘-click — adds cells to the selection; Backspace / Delete / 0 erase the
   selection; H opens the hint or shows the next rung, Enter does what the sheet's main button
-  does (next rung, or apply); L cycles the Σ45 lens (killer); Esc steps back one layer (game menu
+  does (next rung, or apply); A toggles Auto notes; L cycles the Σ45 lens (killer); Esc steps back one layer (game menu
   → hint → lens → several cells → the selection); Ctrl/⌘+Z undo, Ctrl/⌘+Shift+Z or Ctrl+Y redo.
   Queens: H, Enter, Esc, S (Scratch on / off), Ctrl/⌘+Z / Y. Bare-key shortcuts ignore
   Ctrl/⌘/Alt (those combinations stay the browser's: tabs, history, save) and held-key repeats
@@ -97,20 +102,28 @@ The solver looks ahead a few placements and picks the one that needs the fewest 
 first; candidates a step relies on are traced back, digit by digit, so unrelated steps drop out.
 It first checks the board for digits that need nothing at all (a single, a cage's last cell, a
 45-rule sum — even ones the step-by-step solver would only reach late). Over whole solves:
-~72–86% of killer hints and ~92% of classic ones place a digit outright; ~7–11% need one to
-three narrowing steps, which the "why" rung walks through ("First, look at the 7 cage at r4c3: …
-So r4c3, r4c4 and r4c5 can only be 1, 2 or 4."), then shows how you know the digit, then nudges
-that notes would have shown it at a glance. "Do" places the digit; nothing is written into the
-player's notes.
+~72–86% of killer hints and ~92% of classic ones place a digit outright. "Do" places the digit;
+nothing is written into the player's notes.
 
-When the nearest digit is further than that (the hard openings of tough killers), the hint
-teaches the route in rounds of up to three steps, aimed at a named square ("Two steps on the way
-to r3c1."), with "Do" = "Pencil it in: …". Applying a round pencils in what it leaves, in the
-squares it marks and nowhere else: notes there keep the digits still possible, and a square
-without notes gets every digit a note may hold there (what the notes check allows, less what
-hints have ruled out) — exactly what the hint drew, less what it struck. The game also remembers what hints have ruled out (saved with the game), so the next hint
-picks up from there — and every later hint is shorter for it. Rounds are ~4% of killer-easy
-hints, ~20% of expert.
+A digit that needs narrowing first is taught as a **route**: up to three narrowing steps, then
+the digit, one step at a time. A pill in the sheet's header says where you are ("Step 1 of 3 ·
+toward r5c6"); each step has its own Where ("No digit is certain yet. Look at the 7 cage at
+r4c3."), What, Why (ending "So r4c3, r4c4 and r4c5 can only be 1, 2 or 4.") and Do ("Note it
+down: …"), Apply takes just that step and opens the next at What, and every step applied counts
+as one hint. The digit's step ends with a nudge that notes would have shown it at a glance. When
+the digit is further off (the hard openings of tough killers), the route is the first three
+steps toward it, and the last Apply says "Route marked. Hint again for r5c6." Closing the sheet
+mid-route drops the rest; the next Hint carries on from the board. Applying a narrowing step
+pencils in what it leaves, in the squares it marks and nowhere else: notes there keep the digits
+still possible, and a square without notes gets what the hint drew, less what it struck — unless
+the auto-note layer is on, which narrows by itself. The game remembers what hints have ruled out
+(saved with the game), so the next hint picks up from there — and every later hint is shorter
+for it.
+
+With the **auto-note layer** on, hints take what it shows as known: the layer comes from the
+rules, not from you, so no route spends a step on a cage sum you can already see. A step whose
+result your own notes already show is credited instead of re-taught: "Step 1 of 3 · already in
+your notes", a one-line Why, "Got it", and it costs no hint.
 
 Before any step, the hint checks, in order:
 1. **Wrong digits / queens** → "Something's off in the top-left box." … "Clear r3c4."
@@ -125,8 +138,8 @@ Before any step, the hint checks, in order:
 |---|---|---|
 | 1 Where | which area to look at, no technique named | area tinted, rest dimmed |
 | 2 What | technique name + one-line nudge, tier badge | pattern cells outlined, cages lit |
-| 3 Why | full reasoning with cells, digits and arithmetic (narrowing steps first, if any) | pencils in only the squares the steps mark (never "every other 9"): candidates coloured by role, every step's eliminations struck through; notes in squares the hint doesn't use step aside until it closes; sight lines from justifying digits, chain arrows, dashed virtual cages, the cages involved lit |
-| 4 Do | places the digit (a round: pencils in what it leaves) | normal feedback |
+| 3 Why | full reasoning with cells, digits and arithmetic | pencils in only the squares the step marks (never "every other 9"): candidates coloured by role, every step's eliminations struck through; notes in squares the hint doesn't use step aside until it closes; sight lines from justifying digits, chain arrows, dashed virtual cages, the cages involved lit |
+| 4 Do | places the digit, or (a narrowing step) pencils in what it leaves | normal feedback |
 
 Hint text is generated from structured `Step.explain` data via per-technique templates (no LLM,
 no prose in techniques). "Learn" on the sheet opens that technique's guide.

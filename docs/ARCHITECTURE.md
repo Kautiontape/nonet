@@ -83,18 +83,27 @@ tests/
   (`refColors`), and the hint sheet asks the board for the same map, so text and rings always
   agree.
 - **Hints** reason from the board (basic candidates), never from the player's notes, and always
-  end in a placement: `sudokuHint` runs the solver ahead a few placements, traces each one's
+  aim at a placement: `sudokuHint` runs the solver ahead a few placements, traces each one's
   candidate dependencies back through the steps before it (digit-aware: a hidden single of 7 only
   needs earlier eliminations of 7 in its house; arithmetic placements need none), and picks the
   placement with the fewest. A direct probe first asks every placing technique (singles, cage
-  last cell, 45-rule sums) about the board itself. Up to three steps become `hint.prior`, walked
-  through in the "why" rung; longer routes are taught in rounds of three (a hint with no
-  placement). Everything a hint rules out goes into `SudokuGame.known` (saved) and back in as
-  `HintInput.known`, so rounds build on each other. `hintMarks` is the one list of squares a step
-  hint pencils — the board draws ghosts there, and applying a round writes `shownCandidates`
-  (what a note may hold, less `known`) into the same squares. Notes are only checked for digits
-  that are impossible (`impossibleNotes`, over the same `legalCandidates`); auto-clear on
-  placement removes exactly those (cage sums included), so notes a round wrote never trip it.
+  last cell, 45-rule sums) about the board itself. A placement that needs narrowing first becomes
+  a **route** (`SudokuHint.route`): up to three narrowing steps, then the placement when it's
+  within reach, each entry a complete single-step hint with its own ladder and marks; the hint
+  itself mirrors the first entry, and `target` names the digit's square. The play screen walks
+  the route, one entry per Apply. Everything a hint rules out goes into `SudokuGame.known`
+  (saved) and back in as `HintInput.known`, so steps build on each other. `hintMarks` is the one
+  list of squares a step pencils — the board draws ghosts there, and applying a narrowing step
+  writes `shownCandidates` (what a note may hold, less `known`) into the same squares. Notes are
+  only checked for digits that are impossible (`impossibleNotes`, over the same
+  `legalCandidates`); auto-clear on placement removes exactly those (cage sums included), so
+  notes a step wrote never trip it.
+- **Auto-note layer.** `SudokuGame.layer()` is never stored: `candidatesNow()` (cage-sum
+  candidates in killer, basic in classic) less `known`, the player's strikes (`hidden`, saved)
+  and their own notes; the board draws it dim (`.notes i.auto`). With the layer on,
+  `effectiveKnown()` adds what it rules out to `known` for the hint engine — sound, since the
+  layer comes from the rules — so hints never re-teach it, and `visibleNotes()` (own notes plus
+  the layer) goes in as `HintInput.visible`, used only to mark a route step `already` shown.
 
 ### Generation
 - Classic: random solved grid → dig 180°-symmetric pairs while the exact solver says unique →

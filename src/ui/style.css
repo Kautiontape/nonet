@@ -1497,6 +1497,24 @@ button:disabled {
   color: var(--ink-faint);
 }
 
+/* Which step of a route this is, and where it leads. */
+.hs-route {
+  display: none;
+  width: fit-content;
+  margin-bottom: 3px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--a1);
+  background: color-mix(in srgb, var(--a1) 14%, transparent);
+}
+
+.hs-route.on {
+  display: block;
+}
+
 .hs-body {
   overflow-y: auto;
   padding: 4px 2px;

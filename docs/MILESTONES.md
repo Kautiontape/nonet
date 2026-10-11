@@ -53,10 +53,15 @@ Levels flow: auto-advance after a solve with a translucent results banner; eight
 entrances with matching exits and arrival sounds; Scores (records + history).
 
 Hints aim at the next digit: board-only reasoning, placement lookahead with digit-aware
-dependency tracing, chained "why" with a notes nudge; only impossible notes are flagged.
-A hint pencils only the squares its steps mark (other notes step aside while it's open); applying
-a round toward a digit writes those notes, and auto-clear drops what a killer cage's sum rules
-out, so they never go stale.
+dependency tracing; only impossible notes are flagged. A digit that needs narrowing first is a
+route, taught one step at a time on the sheet ("Step 1 of 3 · toward r5c6"), with credit for
+steps already in your notes. A hint pencils only the squares its step marks (other notes step
+aside while it's open); applying a narrowing step writes those notes, and auto-clear drops what a
+killer cage's sum rules out, so they never go stale.
+
+Auto notes is a layer of dim digits under your own (strike, unstrike, erase), a setting that
+follows you between levels; with it on, hints take what it shows as known, so a killer route
+never re-teaches a cage sum you can already see.
 
 ## Next
 - Calculator tape UI and multi-house lens (M4).
