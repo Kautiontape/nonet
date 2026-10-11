@@ -41,10 +41,8 @@ export function splitRefs(text: string): RefPart[] {
 /**
  * A colour for every square named in `texts`, by first mention. Squares listed together
  * ("r1c9, r2c9 and r3c9") share one colour; a square keeps its colour wherever it comes up again.
- * A text `whole(i)` marks as one step gets one colour for all its new squares — its first
- * square's, if that already has one (the same cage named again stays the same colour).
  */
-export function refColors(texts: readonly string[], palette: readonly string[] = REF_COLORS, whole?: (i: number) => boolean): Map<string, string> {
+export function refColors(texts: readonly string[], palette: readonly string[] = REF_COLORS): Map<string, string> {
   const colors = new Map<string, string>();
   let next = 0;
   let group: string[] = [];
@@ -56,29 +54,20 @@ export function refColors(texts: readonly string[], palette: readonly string[] =
     }
     group = [];
   };
-  texts.forEach((text, t) => {
+  for (const text of texts) {
     const parts = splitRefs(text);
-    if (whole?.(t)) {
-      const names = parts.flatMap((p) => (typeof p === "string" ? [] : [p.name]));
-      if (!names.length) return;
-      const color = colors.get(names[0]!) ?? palette[next++ % palette.length]!;
-      for (const n of names) if (!colors.has(n)) colors.set(n, color);
-      return;
-    }
     parts.forEach((p, i) => {
       if (typeof p !== "string") group.push(p.name);
       else if (!(JOIN.test(p) && typeof parts[i + 1] === "object")) flush();
     });
     flush();
-  });
+  }
   return colors;
 }
 
-/** Colours for a hint's visible text: each narrowing step of a chain gets one colour of its own. */
+/** Colours for a hint's visible text. */
 export function ladderColors(ladder: LadderText, rung: number, palette: readonly string[] = REF_COLORS): Map<string, string> {
-  const steps = rung >= 3 ? (ladder.steps ?? 0) : 0;
-  // ladderTexts order: where, what, then the why paragraphs — the steps come first among those.
-  return refColors(ladderTexts(ladder, rung), palette, (i) => i >= 2 && i < 2 + steps);
+  return refColors(ladderTexts(ladder, rung), palette);
 }
 
 /** The ladder text on screen once rungs 1..rung are revealed, in reading order. */

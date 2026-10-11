@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { comboCandidates } from "../../src/engine/candidates";
 import { maskOf } from "../../src/engine/combos";
 import { cellName } from "../../src/engine/geometry";
-import { hintMarks } from "../../src/engine/hints/index";
+import { hintMarks, type SudokuHint } from "../../src/engine/hints/index";
 import { decodeSudoku, type SudokuPackEntry } from "../../src/engine/pack";
 import type { Digit, Puzzle, Step } from "../../src/engine/types";
 import { SudokuGame, type GameEvent } from "../../src/game/sudoku-game";
@@ -164,7 +164,7 @@ describe("SudokuGame", () => {
         { cell: cell("r1c6"), digit: 2, role: "digit" },
       ],
     } as unknown as Step;
-    g.applyHint({ kind: "step", title: "Pointing", ladder: { where: "", what: "", why: [], do: "" }, step, prior: [] });
+    g.applyHint({ kind: "step", title: "Pointing", ladder: { where: "", what: "", why: [], do: "" }, step });
     expect(g.known[cell("r1c3")]).toBe(maskOf([1]));
     expect(g.notes[cell("r1c3")]).toBe(maskOf([2, 4])); // an empty square: its candidates (1, 2, 4), less the 1
     expect(g.notes[cell("r1c4")]).toBe(maskOf([6])); // the player's notes keep what's still possible
@@ -180,21 +180,26 @@ describe("SudokuGame", () => {
     expect(restored.known[cell("r1c3")]).toBe(maskOf([1]));
   });
 
-  it("applying a round toward a digit pencils it in — the board from the bug report", () => {
+  it("a round toward a digit is applied a step at a time, each pencilling only its own squares — the board from the bug report", () => {
     // killer-medium-1: the round that ends with 9 pointing out of the top-middle box. Its squares
-    // used to get no notes; now they get exactly what the hint drew, less what it struck.
+    // used to get no notes; now they get exactly what each step drew, less what it struck.
     const g = new SudokuGame(packPuzzle("killer-medium", 0));
+    const isRound = (x: SudokuHint) => !!x.route && !x.route[x.route.length - 1]!.step!.placements.length && x.route.some((r) => r.technique === "pointing");
     let h = g.hint();
-    for (let k = 0; k < 20 && !(h.step && !h.step.placements.length && h.step.technique === "pointing"); k++) {
-      g.applyHint(h);
+    for (let k = 0; k < 20 && !isRound(h); k++) {
+      for (const r of h.route ?? [h]) g.applyHint(r);
       h = g.hint();
     }
-    expect(h.ladder.what).toMatch(/on the way to r1c3\.$/);
-    expect(h.ladder.do).toBe("Pencil it in: r1c3 and r1c4 can only be 4 or 8; r2c1, r2c2 and r2c3 can't be 9.");
+    expect(isRound(h)).toBe(true);
+    expect(h.target).toBe(cell("r1c3"));
+    expect(h.ladder.where).toMatch(/^No digit is certain yet\. /);
+    expect(h.route!.find((r) => r.technique === "pointing")!.ladder.do).toBe("Note it down: r2c1, r2c2 and r2c3 can't be 9.");
     const squares = ["r1c1", "r1c2", "r1c3", "r1c4", "r2c1", "r2c2", "r2c3", "r2c4", "r2c5", "r2c6"];
-    expect([...new Set(hintMarks(h).map((m) => cellName(m.cell)))].sort()).toEqual(squares);
+    expect([...new Set(h.route!.flatMap((r) => hintMarks(r).map((m) => cellName(m.cell))))].sort()).toEqual(squares);
     const before = Uint16Array.from(g.notes);
-    g.applyHint(h);
+    const used = g.hintsUsed;
+    for (const r of h.route!) g.applyHint(r);
+    expect(g.hintsUsed).toBe(used + h.route!.length); // one hint per step taken
     for (let c = 0; c < 81; c++) if (!squares.includes(cellName(c))) expect(g.notes[c], cellName(c)).toBe(before[c]);
     expect(g.notes[cell("r1c1")]).toBe(maskOf([7, 9]));
     expect(g.notes[cell("r1c3")]).toBe(maskOf([4, 8]));
@@ -239,16 +244,18 @@ describe("SudokuGame", () => {
       for (let k = 0; k < 400 && !g.solved; k++) {
         const h = g.hint();
         expect(h.kind, `${file} #${i}`).toBe("step");
-        const before = Uint16Array.from(g.notes);
-        g.applyHint(h);
-        if (!h.step!.placements.length) {
-          // A round writes what it drew, less what it struck — in its squares and nowhere else.
-          const marks = hintMarks(h);
-          const squares = new Set(marks.map((m) => m.cell));
-          for (let c = 0; c < 81; c++) if (!squares.has(c)) expect(g.notes[c]).toBe(before[c]);
-          for (const m of marks) if (m.role !== "elim") expect(g.notes[m.cell]! & (1 << m.digit), `${file} ${cellName(m.cell)}:${m.digit}`).not.toBe(0);
+        for (const r of h.route ?? [h]) {
+          const before = Uint16Array.from(g.notes);
+          g.applyHint(r);
+          if (!r.step!.placements.length) {
+            // A narrowing step writes what it drew, less what it struck — in its squares and nowhere else.
+            const marks = hintMarks(r);
+            const squares = new Set(marks.map((m) => m.cell));
+            for (let c = 0; c < 81; c++) if (!squares.has(c)) expect(g.notes[c]).toBe(before[c]);
+            for (const m of marks) if (m.role !== "elim") expect(g.notes[m.cell]! & (1 << m.digit), `${file} ${cellName(m.cell)}:${m.digit}`).not.toBe(0);
+          }
+          for (let c = 0; c < 81; c++) if (g.notes[c]) expect(g.notes[c]! & (1 << g.solution[c]!), `${file} ${cellName(c)}`).not.toBe(0);
         }
-        for (let c = 0; c < 81; c++) if (g.notes[c]) expect(g.notes[c]! & (1 << g.solution[c]!), `${file} ${cellName(c)}`).not.toBe(0);
       }
       expect(g.solved, `${file} #${i}`).toBe(true);
     }
@@ -385,12 +392,12 @@ describe("hints with the auto-note layer on", () => {
   it("count the layer as known: the opening round skips the cage sums the layer already shows", () => {
     const p = packPuzzle("killer-expert", 1);
     const plain = new SudokuGame(p).hint();
-    expect([...(plain.prior ?? []), plain.step!].some(sumStep)).toBe(true); // what it re-taught before
+    expect((plain.route ?? [plain]).some((r) => sumStep(r.step!))).toBe(true); // what it re-taught before
     const g = new SudokuGame(p);
     g.settings.autoNotes = true;
     const h = g.hint();
     expect(h.kind).toBe("step");
-    expect([...(h.prior ?? []), h.step!].some(sumStep)).toBe(false);
+    expect((h.route ?? [h]).some((r) => sumStep(r.step!))).toBe(false);
     const layer = comboCandidates(p, g.grid);
     for (let c = 0; c < 81; c++) expect(g.hintCandidates()[c]! & ~layer[c]!).toBe(0); // pencils nothing the layer rules out
     expect(g.known.every((k) => k === 0)).toBe(true); // and nothing is stored
@@ -416,7 +423,7 @@ describe("hints with the auto-note layer on", () => {
       explain: {},
       marks: [{ cell: cell("r2c3"), digit: 2, role: "key" }],
     } as unknown as Step;
-    g.applyHint({ kind: "step", title: "Pointing", ladder: { where: "", what: "", why: [], do: "" }, step, prior: [] });
+    g.applyHint({ kind: "step", title: "Pointing", ladder: { where: "", what: "", why: [], do: "" }, step });
     expect(g.known[cell("r1c3")]).toBe(maskOf([1]));
     expect(g.notes[cell("r1c3")]).toBe(0); // nothing written…
     expect(g.layer()[cell("r1c3")]).toBe(maskOf([2, 4])); // …the layer shows the 1 gone
@@ -431,7 +438,7 @@ describe("hints with the auto-note layer on", () => {
       for (let k = 0; k < 400 && !g.solved; k++) {
         const h = g.hint();
         expect(h.kind, `${file} #${i}`).toBe("step");
-        g.applyHint(h);
+        for (const r of h.route ?? [h]) g.applyHint(r);
         for (let c = 0; c < 81; c++) if (g.notes[c]) expect(g.notes[c]! & (1 << g.solution[c]!), `${file} ${cellName(c)}`).not.toBe(0);
       }
       expect(g.solved, `${file} #${i}`).toBe(true);

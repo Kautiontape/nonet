@@ -416,7 +416,21 @@ export class SudokuGame {
   // Hints
 
   hint(): SudokuHint {
-    return sudokuHint({ puzzle: this.puzzle, grid: this.grid, notes: this.notes, solution: this.solution, known: this.effectiveKnown() });
+    return sudokuHint({
+      puzzle: this.puzzle,
+      grid: this.grid,
+      notes: this.notes,
+      solution: this.solution,
+      known: this.effectiveKnown(),
+      visible: this.visibleNotes(),
+    });
+  }
+
+  /** What the player sees pencilled: their own notes plus the layer's dim digits. */
+  visibleNotes(): Uint16Array {
+    const out = this.layer();
+    for (let c = 0; c < 81; c++) out[c] = out[c]! | this.notes[c]!;
+    return out;
   }
 
   /**
@@ -443,10 +457,14 @@ export class SudokuGame {
     if (rung >= 0 && rung < this.rungs.length) this.rungs[rung]!++;
   }
 
-  /** Apply a hint's "do" rung as one undoable entry. */
+  /**
+   * Apply a hint's "do" rung as one undoable entry. A route applies one step at a time: this is
+   * the hint's own step (the screen moves on to the next entry). A step whose result was already
+   * in the player's notes is recorded like any other but costs no hint.
+   */
   applyHint(h: SudokuHint): void {
     if (this.solved) return;
-    this.hintsUsed++;
+    if (!h.already) this.hintsUsed++;
     const pending = new Map<CellId, Change>();
     const get = (c: CellId): Change => {
       let ch = pending.get(c);
@@ -456,7 +474,7 @@ export class SudokuGame {
     const placed: { cell: CellId; digit: Digit }[] = [];
     if (h.kind === "step" && h.step) {
       // What a hint rules out is remembered for the next hint, whatever the notes say.
-      for (const s of [...(h.prior ?? []), h.step]) for (const e of s.eliminations) this.known[e.cell]! |= bit(e.digit);
+      for (const e of h.step.eliminations) this.known[e.cell]! |= bit(e.digit);
       for (const p of h.step.placements) placed.push(p);
       // A round on the way to a digit pencils in what it leaves, in the squares it marks: notes keep
       // the digits still possible. A square with none gets the hint's candidates — unless the

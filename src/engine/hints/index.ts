@@ -15,13 +15,14 @@
  *
  * Every step hint places a digit. The solver looks ahead a few placements and picks the one that
  * needs the fewest narrowing steps first (most need none: a single, or a 45-rule sum); when some
- * are needed, the hint walks through just those, then shows how you know the digit, with a nudge
- * that notes would have shown it. When the digit is further off, a hint teaches a round of
- * narrowing steps toward it, and applying it pencils in what they leave (`hintMarks` says where).
+ * are needed, the hint is a route: those steps, then the digit, each a complete hint of its own
+ * that the sheet walks through one at a time. When the digit is further off, the route is the
+ * first few steps toward it; applying each pencils in what it leaves (`hintMarks` says where) and
+ * the game remembers what it ruled out, so the next hint picks up from there.
  */
 import { basicCandidates } from "../candidates";
 import { techniqueName } from "../catalog";
-import { digitsOf, popcount } from "../combos";
+import { bit, digitsOf, popcount } from "../combos";
 import { CELL_HOUSES, cellName, houseAt, houseIndex, houseName, HOUSE_CELLS, PEERS } from "../geometry";
 import type { HintCommon, LadderText } from "../hint-types";
 import { nextStep, type LogicalOptions } from "../logical";
@@ -30,16 +31,23 @@ import type { Technique } from "../techniques/types";
 import { cageView } from "../techniques/killer";
 import { applyStep, cloneState, createState, isBroken, type SolverState } from "../state";
 import type { CandidateMark, CellId, Digit, Grid, House, Puzzle, Step } from "../types";
-import { aDigit, asClause, cageName, cap, cellList, comboList, maskList, numberWord, relation } from "./format";
+import { aDigit, cageName, cap, cellList, comboList, maskList, relation } from "./format";
 import { templateFor } from "./registry";
 
 export interface SudokuHint extends HintCommon {
-  /** The step that places the digit. */
+  /** The step this hint teaches: a placement, or one narrowing step of a route. */
   step?: Step;
-  /** Narrowing steps it needs first, in order (eliminations only). */
-  prior?: Step[];
   /** Cells the hint is about (wrong digits, impossible notes, or a revealed cell). */
   cells?: CellId[];
+  /**
+   * A hint that takes more than one step: each entry is a complete single-step hint, in order, and
+   * the hint itself mirrors the first. The sheet walks them one at a time.
+   */
+  route?: SudokuHint[];
+  /** The square a route leads to: the digit's cell, whether or not the route reaches it. */
+  target?: CellId;
+  /** The step's result is already in the player's notes: shown collapsed, and it costs no hint. */
+  already?: boolean;
   /** What the "do" rung changes for non-step hints. */
   fix?: {
     clear?: CellId[];
@@ -64,6 +72,11 @@ export interface HintInput {
    * the player's notes, so a hint that only narrows things down isn't forgotten by the next one.
    */
   known?: ArrayLike<number>;
+  /**
+   * What the player sees pencilled (bitmask per cell): their own notes plus the auto-note layer.
+   * Used only to credit a step whose result is already there — never as a deduction.
+   */
+  visible?: ArrayLike<number>;
 }
 
 /** Where hints reason from: the board, minus what earlier hints have ruled out. */
@@ -108,20 +121,20 @@ export function shownCandidates(puzzle: Puzzle, grid: Grid, known?: ArrayLike<nu
 }
 
 /**
- * The candidates a step hint marks, one role each: every step it walks through, in order, with its
- * eliminations struck (a later step's role wins, but a struck candidate stays struck). Their squares
- * are the only ones the hint pencils. "digit" marks are left out: they point out where else a digit
- * can go, which is no reason to pencil a square.
+ * The candidates a step hint marks, one role each: the step's marks, with its eliminations struck
+ * (a struck candidate stays struck whatever else marks it). Their squares are the only ones the
+ * hint pencils. "digit" marks are left out: they point out where else a digit can go, which is no
+ * reason to pencil a square.
  */
-export function hintMarks(hint: Pick<SudokuHint, "step" | "prior">): CandidateMark[] {
+export function hintMarks(hint: Pick<SudokuHint, "step">): CandidateMark[] {
   const out = new Map<number, CandidateMark>();
-  for (const s of hint.step ? [...(hint.prior ?? []), hint.step] : []) {
-    const struck = s.eliminations.map((e): CandidateMark => ({ cell: e.cell, digit: e.digit, role: "elim" }));
-    for (const m of [...(s.marks ?? []), ...struck]) {
-      if (m.role === "digit") continue;
-      const k = pair(m.cell, m.digit);
-      if (out.get(k)?.role !== "elim") out.set(k, { cell: m.cell, digit: m.digit, role: m.role });
-    }
+  const s = hint.step;
+  if (!s) return [];
+  const struck = s.eliminations.map((e): CandidateMark => ({ cell: e.cell, digit: e.digit, role: "elim" }));
+  for (const m of [...(s.marks ?? []), ...struck]) {
+    if (m.role === "digit") continue;
+    const k = pair(m.cell, m.digit);
+    if (out.get(k)?.role !== "elim") out.set(k, { cell: m.cell, digit: m.digit, role: m.role });
   }
   return [...out.values()];
 }
@@ -375,64 +388,6 @@ function walk(start: SolverState, steps: readonly Step[]): string[] {
   });
 }
 
-/** "First, look at the 7 cage at r4c3: … So r4c3, r4c4 and r4c5 can only be 1, 2 or 4." */
-function narrowingParagraphs(start: SolverState, steps: readonly Step[], puzzle: Puzzle): string[] {
-  const facts = walk(start, steps);
-  return steps.map((s, i) => {
-    const t = templateFor(s.technique)(s, { puzzle });
-    return `${i === 0 ? "First" : "Then"}, ${asClause(t.where)}: ${t.why.join(" ")} So ${facts[i]}.`;
-  });
-}
-
-/**
- * When the nearest digit is a long way off: teach the first few steps toward it (a round of up to
- * MAX_CHAIN). Applying it pencils in what they leave, and the game remembers what they rule out
- * (HintInput.known), so the next hint picks up from there.
- */
-function steppingStone(start: SolverState, route: readonly Step[], goal: Step, puzzle: Puzzle): SudokuHint {
-  const round = route.slice(0, MAX_CHAIN);
-  const first = templateFor(round[0]!.technique)(round[0]!, { puzzle });
-  const target = cellName(goal.placements[0]!.cell);
-  const why = round.length === 1 ? [...first.why, `So ${walk(start, round)[0]}.`] : narrowingParagraphs(start, round, puzzle);
-  why.push(
-    `Nothing can be placed straight from the board yet: ${round.length === 1 ? "this is" : "these are"} the way in toward ${target}. Pencil ${round.length === 1 ? "it" : "them"} in, and the next hint picks up from there.`,
-  );
-  return {
-    kind: "step",
-    title: techniqueName(round[0]!.technique),
-    technique: round[0]!.technique,
-    tier: Math.max(...round.map((x) => x.tier)),
-    ladder: {
-      where: first.where,
-      what: `${first.what} ${round.length === 1 ? "It's a step" : `${cap(numberWord(round.length))} steps`} on the way to ${target}.`,
-      why,
-      do: `Pencil it in: ${narrowed(round.flatMap((x) => x.eliminations), start.cand)}.`,
-      ...(round.length > 1 ? { steps: round.length } : {}),
-    },
-    step: round[round.length - 1]!,
-    prior: round.slice(0, -1),
-    cells: round[0]!.focus.cells,
-  };
-}
-
-/** One digit-placing step, with the narrowing it needs first walked through. */
-function chainLadder(start: SolverState, prior: readonly Step[], step: Step, puzzle: Puzzle): LadderText {
-  const fin = templateFor(step.technique)(step, { puzzle });
-  if (!prior.length) return fin;
-  const why = narrowingParagraphs(start, prior, puzzle);
-  // The singles say "ruled out by earlier deductions": here those are the steps just shown.
-  const above = prior.length === 1 ? "by the step above" : "by the steps above";
-  why.push(`${prior.length === 1 ? "With that" : "With those"} ruled out, ${asClause(fin.where)}: ${fin.why.join(" ").replaceAll("by earlier deductions", above)}`);
-  why.push(notesNudge(step));
-  return {
-    where: fin.where,
-    what: `${fin.what} ${prior.length === 1 ? "One narrowing step gets you there." : `${cap(numberWord(prior.length))} narrowing steps get you there.`}`,
-    why,
-    do: fin.do,
-    steps: prior.length,
-  };
-}
-
 /** How notes would have made a chained hint visible at a glance. */
 function notesNudge(step: Step): string {
   const ex = step.explain as { kind?: string; cell?: CellId; digit?: number; house?: House };
@@ -441,6 +396,55 @@ function notesNudge(step: Step): string {
   if (ex.kind === "naked-single" && ex.cell !== undefined)
     return `Notes make this easy to see: with ${cellName(ex.cell)}'s options pencilled in and those crossed out, only ${ex.digit} is left.`;
   return "Notes make chains like this easy to follow: pencil in what each cell can be and cross out as you go.";
+}
+
+/**
+ * Whether the player's visible notes already reflect a step: in every square it narrows they show
+ * something, and none of the digits it strikes. Presentation only — the step is still the engine's
+ * own deduction.
+ */
+function alreadyShown(step: Step, visible?: ArrayLike<number>): boolean {
+  if (!visible || !step.eliminations.length) return false;
+  return step.eliminations.every((e) => {
+    const v = visible[e.cell] ?? 0;
+    return v !== 0 && !(v & bit(e.digit));
+  });
+}
+
+/** A hint for one step. */
+function stepHint(step: Step, ladder: LadderText, already = false): SudokuHint {
+  return {
+    kind: "step",
+    title: techniqueName(step.technique),
+    technique: step.technique,
+    tier: step.tier,
+    ladder,
+    step,
+    cells: step.focus.cells,
+    ...(already ? { already } : {}),
+  };
+}
+
+/**
+ * A route: the narrowing steps toward a digit, then the digit itself when it's within reach. Each
+ * entry is a complete hint of its own — the sheet walks them one at a time — and the hint itself
+ * mirrors the first, so anything that reads one step sees where the route starts.
+ */
+function routeHint(start: SolverState, steps: readonly Step[], target: CellId, input: HintInput): SudokuHint {
+  const facts = walk(start, steps);
+  const route = steps.map((s, i) => {
+    const t = templateFor(s.technique)(s, { puzzle: input.puzzle });
+    const where = i === 0 ? `No digit is certain yet. ${t.where}` : t.where;
+    if (s.placements.length) {
+      // The singles say "ruled out by earlier deductions": here those are the steps before.
+      const why = t.why.map((w) => w.replaceAll("by earlier deductions", "by the steps before"));
+      return stepHint(s, { where, what: t.what, why: [...why, notesNudge(s)], do: t.do });
+    }
+    if (alreadyShown(s, input.visible))
+      return stepHint(s, { where, what: "Already in your notes.", why: [`Your notes already show ${facts[i]}.`], do: "Nothing to add." }, true);
+    return stepHint(s, { where, what: t.what, why: [...t.why, `So ${facts[i]}.`], do: `Note it down: ${facts[i]}.` });
+  });
+  return { ...route[0]!, route, target };
 }
 
 function stuckHint(input: HintInput): SudokuHint {
@@ -487,18 +491,10 @@ export function sudokuHint(input: HintInput): SudokuHint {
   const next = nextPlacement(input);
   if (!next) return stuckHint(input);
   const { step, prior } = next;
-  const start = boardState(input);
-  if (prior.length > MAX_CHAIN) return steppingStone(start, prior, step, puzzle);
-  return {
-    kind: "step",
-    title: techniqueName(step.technique),
-    technique: step.technique,
-    tier: Math.max(step.tier, ...prior.map((s) => s.tier)),
-    ladder: chainLadder(start, prior, step, puzzle),
-    step,
-    prior,
-    cells: step.focus.cells,
-  };
+  if (!prior.length) return stepHint(step, templateFor(step.technique)(step, { puzzle }));
+  // Within reach: the narrowing steps, then the digit. Further off: a round of steps toward it.
+  const steps = prior.length > MAX_CHAIN ? prior.slice(0, MAX_CHAIN) : [...prior, step];
+  return routeHint(boardState(input), steps, step.placements[0]!.cell, input);
 }
 
 /** One-line description of a step (for logs, the solve-path view, and tests). */

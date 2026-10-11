@@ -456,9 +456,7 @@ export class SudokuBoard {
 
     const focus = step ? step.focus.cells : (hint.cells ?? []);
     for (const c of focus) this.cellEls[c]!.classList.add("h-focus");
-    // A chained hint lights the cages its narrowing steps use, too.
-    const prior = hint.prior ?? [];
-    if (step) for (const id of [...step.focus.cages, ...prior.flatMap((p) => p.focus.cages)]) this.cagePaths.get(id)?.classList.add("h-cage");
+    if (step) for (const id of step.focus.cages) this.cagePaths.get(id)?.classList.add("h-cage");
     if (rung < 3) return;
 
     // From "why" on, notes stay in view only in the squares the hint marks, names or outlines; the
@@ -468,14 +466,13 @@ export class SudokuBoard {
     for (let c = 0; c < 81; c++) if (!keep.has(c) && !this.cellEls[c]!.classList.contains("h-ref")) this.cellEls[c]!.classList.add("h-quiet");
     if (step) {
       for (const c of step.sources ?? []) this.cellEls[c]!.classList.add("h-source");
-      for (const e of [...prior.flatMap((p) => p.eliminations), ...step.eliminations]) this.cellEls[e.cell]!.classList.add("h-target");
+      for (const e of step.eliminations) this.cellEls[e.cell]!.classList.add("h-target");
       for (const p of step.placements) this.cellEls[p.cell]!.classList.add("h-place");
-      // Every step's marks, the narrowing steps' too, in only the squares they mark.
+      // The step's marks, in only the squares it marks.
       this.drawMarks(marks, (step.marks ?? []).filter((m) => m.role === "digit"));
       this.drawSightLines();
       for (const l of step.links ?? []) this.drawLink(l.from, l.to, l.strong);
-      for (const vc of [...prior.flatMap((p) => p.virtualCages ?? []), ...(step.virtualCages ?? [])])
-        this.hintG.append(s("path", { d: cagePath(vc.cells, 0.17, UNIT), class: "virtual-cage" }));
+      for (const vc of step.virtualCages ?? []) this.hintG.append(s("path", { d: cagePath(vc.cells, 0.17, UNIT), class: "virtual-cage" }));
     } else {
       for (const c of hint.cells ?? []) this.cellEls[c]!.classList.add(hint.kind === "mistake" ? "h-elim" : "h-target");
     }

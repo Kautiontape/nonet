@@ -45,24 +45,18 @@ describe("square names in hint text", () => {
     expect(colors.get(names[REF_COLORS.length]!)).toBe(GOLD);
   });
 
-  it("gives each narrowing step of a chain one colour; the same cage named again keeps it", () => {
+  it("a route step's ladder colours by first mention; a square keeps its colour when named again", () => {
     const ladder = {
-      where: "Look at the 7 cage at r4c3.",
-      what: "Three steps on the way to r3c1.",
-      why: [
-        "First, look at the 7 cage at r4c3: r4c3, r4c4 and r4c5 hold 1, 2 and 4. So r4c3 can't be 9; r4c4 can't be 8.",
-        "Then, look at the 3 cage at r8c1: r8c1 and r9c1 hold 1 and 2.",
-        "Then, look at the 7 cage at r4c3: so r4c5 can only be 4.",
-        "With those ruled out, r3c1 is the only cell; r3c2 sees the 3 in r5c2.",
-      ],
-      do: "Place 3 in r3c1.",
-      steps: 3,
+      where: "No digit is certain yet. Look at the 7 cage at r4c3.",
+      what: "This cage's sum can only be made one way.",
+      why: ["Three different digits that add up to 7: 1+2+4. So r4c3, r4c4 and r4c5 can only be 1, 2 or 4."],
+      do: "Note it down: r4c3, r4c4 and r4c5 can only be 1, 2 or 4.",
     };
     const colors = ladderColors(ladder, 4);
-    expect(new Set(["r4c3", "r4c4", "r4c5"].map((n) => colors.get(n)))).toEqual(new Set([GOLD]));
-    expect(colors.get("r8c1")).toBe(colors.get("r9c1"));
-    expect(colors.get("r8c1")).not.toBe(GOLD);
-    expect(colors.get("r3c2")).not.toBe(colors.get("r5c2")); // past the steps: usual grouping
+    expect(colors.get("r4c3")).toBe(GOLD);
+    expect(colors.get("r4c4")).toBe(colors.get("r4c5"));
+    expect(colors.get("r4c4")).not.toBe(GOLD);
+    expect(ladderColors(ladder, 1).get("r4c4")).toBeUndefined(); // not named yet at rung 1
   });
 
   it("reads the ladder in rung order", () => {

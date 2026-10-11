@@ -764,7 +764,7 @@ class SudokuPlay implements Screen {
     if (hint.step && !hint.step.placements.length) {
       // A round on the way to a digit: no digit lands, so spark where it struck candidates and say
       // what it pencilled in.
-      for (const e of [...(hint.prior ?? []), hint.step].flatMap((s) => s.eliminations)) {
+      for (const e of hint.step.eliminations) {
         const p = this.board.center(e.cell);
         this.app.fx.burst(p.x, p.y, MARK_COLORS.elim!, { count: 5, speed: 90, size: 5, life: 0.5 });
       }

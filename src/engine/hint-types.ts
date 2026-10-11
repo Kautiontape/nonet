@@ -18,8 +18,6 @@ export interface LadderText {
   what: string;
   why: string[];
   do: string;
-  /** The first `steps` why paragraphs each describe one narrowing step (a chain or a round). */
-  steps?: number;
 }
 
 export interface HintCommon {
