@@ -59,7 +59,8 @@ steps already in your notes. A hint pencils only the squares its step marks (oth
 aside while it's open); applying a narrowing step writes those notes, and auto-clear drops what a
 killer cage's sum rules out, so they never go stale.
 
-Backup: Settings saves everything to a JSON file and restores it (replace, after a confirm).
+Backup: Settings → Data saves everything to a JSON file and restores it (replace, after a confirm).
+Settings in tabs, with the build's version and a Changelog modal read from `CHANGELOG.md`.
 
 Auto notes is a layer of dim digits under your own (strike, unstrike, erase), a setting that
 follows you between levels; with it on, hints take what it shows as known, so a killer route

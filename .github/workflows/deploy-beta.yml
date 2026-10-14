@@ -25,7 +25,8 @@ jobs:
       - name: Check out the pushed commit
         working-directory: /opt/services/nonet-beta
         run: |
-          git fetch --prune origin
+          # Tags too: the version under Settings is `git describe` from the last release tag.
+          git fetch --prune --tags --force origin
           git checkout --force --detach "${{ github.sha }}"
       - name: Install dependencies
         working-directory: /opt/services/nonet-beta

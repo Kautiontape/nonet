@@ -801,3 +801,25 @@ test("backup: save a file, then restore it from the game menu over newer progres
   await page.getByTestId("resume-classic").click();
   await expect(page.locator(".stats")).toContainText("Hints 1");
 });
+
+test("settings shows the version; Changelog opens over it and Esc closes only the changelog", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTestId("open-settings").click();
+  const settingsSheet = page.getByTestId("settings");
+  await expect(settingsSheet.getByTestId("version")).toHaveText(/^(Version|Build|Beta) \S+/);
+  await settingsSheet.getByTestId("open-changelog").click();
+  const log = page.getByTestId("changelog");
+  await expect(log.locator("section li").first()).toBeVisible();
+  await log.evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished)));
+  await page.screenshot({ path: "test-results/screens/changelog.png" });
+  await page.keyboard.press("Escape");
+  await expect(log).toHaveCount(0);
+  await expect(settingsSheet).toBeVisible();
+  // A tap outside the card closes it too.
+  await settingsSheet.getByTestId("open-changelog").click();
+  await expect(log).toBeVisible();
+  await page.mouse.click(6, 450); // the margin beside the card (its top edge slides in as it opens)
+  await expect(log).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(settingsSheet).toHaveCount(0);
+});

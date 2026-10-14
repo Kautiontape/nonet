@@ -1,9 +1,11 @@
-/** Settings as a sheet of tabs: toggles, a segmented effects control and a save backup. */
+/** Settings as a sheet of tabs (toggles, effects, a save backup) over the version and changelog. */
+import { versionLabel } from "../changelog";
 import { h, svgIcon } from "../dom";
 import { ICONS } from "../icons";
 import { settings, updateSettings, type EffectsLevel, type Settings } from "../settings";
 import { sound } from "../sound";
 import { backupSolved, makeBackup, parseBackup, restoreBackup, todayKey, type Backup } from "../store";
+import { openChangelog } from "./changelog";
 
 type BoolKey = { [K in keyof Settings]: Settings[K] extends boolean ? K : never }[keyof Settings];
 type Toggle = { key: BoolKey; label: string; hint?: string };
@@ -71,6 +73,12 @@ export function openSettings(): void {
     h("header", { class: "sheet-head" }, h("h2", null, "Settings"), h("button", { class: "icon-btn", type: "button", "aria-label": "Close", onclick: close }, svgIcon(ICONS.close))),
     h("nav", { class: "tabs settings-tabs", role: "tablist", "aria-label": "Settings" }, ...tabs),
     ...panelEls,
+    h(
+      "footer",
+      { class: "settings-foot" },
+      h("span", { "data-testid": "version" }, versionLabel()),
+      h("button", { class: "link-btn", type: "button", "data-testid": "open-changelog", onclick: () => openChangelog() }, "Changelog"),
+    ),
   );
   show("sound");
   document.body.append(overlay);

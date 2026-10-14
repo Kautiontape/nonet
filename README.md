@@ -75,9 +75,14 @@ Two copies on one host, both built by a self-hosted GitHub Actions runner on **k
   screen) and installs beside the real app (`.github/workflows/deploy-beta.yml`). The workflow
   clones that directory from production's remote if it isn't there yet.
 - **Production** — [nonet.kautiontape.com](https://nonet.kautiontape.com). Moves only on a
-  release: push a tag like `v0.1.0` (`git tag v0.1.0 && git push origin v0.1.0`, or publish a
-  GitHub Release), and the runner checks that tag out in `/opt/services/nonet` and builds it
-  (`.github/workflows/deploy.yml`; it can also be run by hand from the Actions tab).
+  release: rename `## Unreleased` in `CHANGELOG.md` to the version and date, commit, then push a
+  tag like `v0.1.0` (`git tag v0.1.0 && git push origin v0.1.0`, or publish a GitHub Release).
+  The runner checks that tag out in `/opt/services/nonet` and builds it
+  (`.github/workflows/deploy.yml`; it can also be run by hand from the Actions tab). The steps
+  are in `docs/CHANGELOG-STYLE.md`.
+
+Settings shows the build's `git describe`: "Version 0.1.0" at a tag, "Beta v0.1.0-3-gabc1234"
+past one (both checkouts fetch tags for this).
 
 The host nginx serves `/opt/services/nonet/dist/` at the root and needs a block for the beta:
 
@@ -98,4 +103,5 @@ round. Pull requests run `npm run check` on GitHub's runners (`.github/workflows
 - What it does: `docs/SPEC.md`
 - How it's built: `docs/ARCHITECTURE.md`
 - Status and next steps: `docs/MILESTONES.md`
+- What's new, for players: `CHANGELOG.md` (how to write it: `docs/CHANGELOG-STYLE.md`)
 - Rules for Claude Code: `CLAUDE.md`

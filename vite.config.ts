@@ -1,3 +1,4 @@
+import { execSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { defineConfig, type Plugin } from "vitest/config";
@@ -29,10 +30,23 @@ function channel(): Plugin {
   };
 }
 
+/**
+ * The build's version, shown under Settings: `git describe` of the checkout, so it is "v0.1.0" at a
+ * release tag, "v0.1.0-3-gabc1234" three commits past it, and a bare hash before the first tag.
+ */
+function version(): string {
+  try {
+    return execSync('git describe --tags --always --match "v*"', { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+  } catch {
+    return `v${(JSON.parse(readFileSync("package.json", "utf8")) as { version: string }).version}`;
+  }
+}
+
 export default defineConfig({
   // Relative asset paths so the build runs from any sub-path (static hosting, file previews, /beta/).
   base: "./",
   plugins: [channel()],
+  define: { __APP_VERSION__: JSON.stringify(version()) },
   test: {
     include: ["tests/**/*.test.ts"],
     exclude: ["tests/e2e/**"],

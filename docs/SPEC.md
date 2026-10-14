@@ -207,7 +207,10 @@ marks anything (all three modes).
   tests).
 - Mistake: shake, red sparks, muted thud, explanation toast.
 - Sound: generative ambient bed per theme; every effect is quantised to the current chord.
-- Settings: Calm / Vivid / Epic effects, sound, music, haptics; `prefers-reduced-motion` honoured.
+- Settings: tabs for Sound & feel (Calm / Vivid / Epic effects, sound, music, haptics), Play,
+  Killer, Queens and Data (backup); `prefers-reduced-motion` honoured. Under the tabs, the
+  version and a Changelog link that opens `CHANGELOG.md` in a modal (Unreleased shows as "Next
+  release" except in a release build).
 
 ---
 
@@ -219,7 +222,7 @@ record / first clear). **Scores** (home footer and the in-game menu) shows recor
 difficulty and the recent levels, filterable by mode. Levels are numbered by their place in the
 pack. Everything is local (localStorage), no accounts.
 
-**Backup** (Settings): *Save backup* writes everything (progress, results, settings, games in
+**Backup** (Settings → Data): *Save backup* writes everything (progress, results, settings, games in
 progress) to a `nonet-backup-YYYY-MM-DD.json` file: the share sheet on phones that can share
 files, a download elsewhere. *Restore…* reads one back, asks before replacing everything on the
 device, and reloads. Not encrypted; it's for moving devices and surviving cleared site data (on

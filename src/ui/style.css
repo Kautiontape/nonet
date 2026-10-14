@@ -2878,3 +2878,88 @@ body:has(.result:not(.out)) .play :is(.topbar, .progress, .stats) {
     height: 70px;
   }
 }
+
+/* ---------------------------------------------------------------- settings footer + changelog */
+
+.settings-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: 680px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 4px 16px 8px 20px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--ink-faint);
+}
+
+.link-btn {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  background: none;
+  border-radius: 12px;
+  color: var(--a1);
+  font-weight: 600;
+}
+
+.link-btn:active {
+  background: var(--glass);
+}
+
+.overlay.modal {
+  align-items: center;
+  justify-content: center;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+  background: rgba(3, 4, 12, 0.6);
+}
+
+.modal-card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 520px;
+  max-height: min(78dvh, 640px);
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(14, 18, 46, 0.98), rgba(5, 7, 20, 0.99));
+  border: 1px solid color-mix(in srgb, var(--a1) 30%, transparent);
+  box-shadow: 0 0 40px -12px color-mix(in srgb, var(--a1) 60%, transparent);
+  overflow: hidden;
+}
+
+.changelog-list {
+  overflow-y: auto;
+  padding: 0 20px 20px;
+}
+
+.changelog-list .changelog-version {
+  margin: 0 0 4px;
+  font-size: 13px;
+  color: var(--ink-faint);
+}
+
+.changelog-list h3 {
+  margin: 18px 0 8px;
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--a1);
+}
+
+.changelog-list ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.changelog-list li {
+  margin-bottom: 8px;
+  font-size: 14.5px;
+  line-height: 1.45;
+  color: var(--ink-dim);
+}
+
+.changelog-list li b {
+  color: var(--ink);
+}

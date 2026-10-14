@@ -2,6 +2,7 @@
 
 Sudoku, Killer Sudoku and Queens PWA with a teaching hint ladder and a Tetris Effect–inspired
 feel. Read `docs/SPEC.md` (what), `docs/ARCHITECTURE.md` (how), `docs/MILESTONES.md` (status).
+`CHANGELOG.md` is for players; `docs/CHANGELOG-STYLE.md` says how to write it and how to release.
 
 ## Commands
 - `npm test` — Vitest (engine, game models, ui helpers). Fast; run constantly.
@@ -44,5 +45,7 @@ Engine `Puzzle`: `{ id, kind, cages, givens?, solution, meta? }` — `solution` 
 ## Definition of done
 1. `npm run check` green; `npm run test:e2e` green for UI changes.
 2. New behaviour has tests; e2e for user-visible flows.
-3. Update `docs/MILESTONES.md` if a milestone moves.
-4. Commit.
+3. A player would notice it → one bullet under `## Unreleased` in `CHANGELOG.md`, written to
+   `docs/CHANGELOG-STYLE.md` (the app shows that file under Settings → Changelog).
+4. Update `docs/MILESTONES.md` if a milestone moves.
+5. Commit.
