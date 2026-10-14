@@ -56,7 +56,12 @@ export function openSettings(): void {
     h("section", { class: "settings-list", role: "tabpanel", id: `set-panel-${t.id}`, "aria-labelledby": `set-tab-${t.id}`, "data-tab": t.id }, ...panels[t.id]),
   );
   const show = (id: TabId) => {
-    for (const b of tabs) b.setAttribute("aria-selected", String(b.dataset.tab === id));
+    for (const b of tabs) {
+      const on = b.dataset.tab === id;
+      b.setAttribute("aria-selected", String(on));
+      // On a narrow phone the row scrolls: bring a half-hidden tab fully into view.
+      if (on) b.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
     for (const p of panelEls) p.hidden = p.dataset.tab !== id;
   };
   const close = () => {

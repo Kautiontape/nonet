@@ -384,8 +384,13 @@ button:disabled {
 .home-foot {
   margin-top: auto;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
+  /* minmax(0, …): on a narrow phone the three buttons share the width instead of pushing past it. */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.home-foot .btn {
+  padding: 0 8px;
 }
 
 /* ---------------------------------------------------------------- play layout */
@@ -1843,9 +1848,21 @@ body:has(.play.hint-open) .toasts {
   box-shadow: 0 0 18px -6px var(--a1);
 }
 
-/* Five tabs on a phone: each as wide as its label, so "Sound & feel" stays on one line. */
+/* Five tabs on a phone: each as wide as its label, so "Sound & feel" stays on one line. Where
+   they don't fit (narrow phones), the row scrolls sideways instead of clipping the last tab. */
+.settings-tabs {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  padding-top: 8px;
+}
+
+.settings-tabs::-webkit-scrollbar {
+  display: none;
+}
+
 .settings-tabs .tab {
-  flex: 1 1 auto;
+  flex: 1 0 auto;
   height: 44px;
   padding: 0 10px;
   white-space: nowrap;
@@ -2093,12 +2110,15 @@ body:has(.play.hint-open) .toasts {
 
 .backup-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
 }
 
+/* Labels stay on one line; on a narrow phone the two buttons stack instead. */
 .backup-actions .btn {
-  flex: 1;
+  flex: 1 1 auto;
   padding: 0 12px;
+  white-space: nowrap;
 }
 
 .backup-actions[hidden],

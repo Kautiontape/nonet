@@ -10,3 +10,4 @@ written for players. Read `docs/CHANGELOG-STYLE.md` before adding to it.
 - **Auto notes is a layer.** Dim digits show what each empty square still allows; in notes mode, tap one to strike it.
 - With Auto notes on, hints count what it shows, so they don't re-teach a cage sum you can already see.
 - Settings has tabs, with the version and this changelog at the bottom.
+- Fixed: on narrow phones, the Learn, Scores and Settings buttons ran off the edge of the screen.

@@ -823,3 +823,23 @@ test("settings shows the version; Changelog opens over it and Esc closes only th
   await page.keyboard.press("Escape");
   await expect(settingsSheet).toHaveCount(0);
 });
+
+test("on a narrow phone the settings tabs scroll sideways; the page itself never does", async ({ page }) => {
+  await page.setViewportSize({ width: 340, height: 720 });
+  await page.goto("/");
+  await page.getByTestId("open-settings").click();
+  const tabs = page.getByTestId("settings").getByRole("tablist");
+  expect(await tabs.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
+  await page.getByTestId("settings").getByRole("tab", { name: "Data" }).click();
+  await expect(page.getByTestId("backup-save")).toBeVisible();
+  // The chosen tab sits wholly inside the row.
+  expect(
+    await tabs.evaluate((el) => {
+      const row = el.getBoundingClientRect();
+      const tab = el.querySelector('[aria-selected="true"]')!.getBoundingClientRect();
+      return tab.left >= row.left - 1 && tab.right <= row.right + 1;
+    }),
+  ).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: "test-results/screens/settings-narrow.png" });
+});
