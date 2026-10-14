@@ -138,10 +138,12 @@ location ~ ^/api/sync/([0-9a-f]{64})\.json$ {
   a blob whose `version` is above its own (status "Update Nonet to sync") and never pushes over
   it, so an old production build can't clobber what a newer beta wrote.
 - Cloudflare: PUT and 304 pass through; `no-store` keeps it out of the cache. (Cloudflare does
-  rewrite cache headers on JavaScript, see the deploy notes; JSON under `/api/` is not affected.)
-- Setup is one idempotent script (location block, directory, zone, timer) that Shawn runs over
-  SSH; host writes are blocked for Claude. Nothing in the deploy workflows changes. The script
-  lives in the repo under `deploy/`.
+  rewrite cache headers on JavaScript, see `deploy/README.md`; JSON under `/api/` is not affected.)
+- The host setup lives in the repo under `deploy/`: the full nginx site file (source of truth,
+  with the location above), the rate-limit zone, the cleanup timer, and `sync-setup.sh`, which
+  installs them idempotently with a backup of whatever was live. `deploy/README.md` says how to
+  stand up a new server. Shawn runs the script on the host; host writes are blocked for Claude.
+  Nothing in the deploy workflows changes.
 
 What this gives up, knowingly: no compare-and-swap (unneeded, see Problem) and no server-side
 validation beyond size (every reader validates; an invalid blob is ignored and overwritten by the
@@ -236,8 +238,8 @@ applied through the non-stamping path and the usual listeners fire.
 
 1. Merge, code, client and storage changes with tests (no UI yet). `npm run check` green.
 2. Settings UI and the link flow; the e2e spec.
-3. The `deploy/` script, run on ktn by Shawn; verify against `/beta/` first, since every push to
-   main deploys there and the location is shared.
+3. `deploy/sync-setup.sh`, run on ktn by Shawn from the beta checkout once the branch is on
+   main; verify against `/beta/` first, since the location is shared with production.
 4. `CHANGELOG.md`: one bullet under Unreleased. `docs/SPEC.md`: a Sync paragraph in §6 and cloud
    sync out of §7. `docs/MILESTONES.md`. `docs/ARCHITECTURE.md`: `src/sync/` and the server note.
 5. Tag a release.

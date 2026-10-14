@@ -63,6 +63,9 @@ scripts/
 tests/
   engine/ game/ ui/       # Vitest
   e2e/                    # Playwright
+deploy/                   # the host: nginx site (source of truth), sync rate-limit zone,
+  README.md               # cleanup timer, and sync-setup.sh that installs them; README says
+  sync-setup.sh           # how to stand up a new server
 ```
 
 ## Engine
