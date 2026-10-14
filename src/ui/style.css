@@ -1843,6 +1843,14 @@ body:has(.play.hint-open) .toasts {
   box-shadow: 0 0 18px -6px var(--a1);
 }
 
+/* Five tabs on a phone: each as wide as its label, so "Sound & feel" stays on one line. */
+.settings-tabs .tab {
+  flex: 1 1 auto;
+  height: 44px;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
 .learn-content,
 .settings-list {
   flex: 1;

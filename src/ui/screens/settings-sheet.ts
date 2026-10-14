@@ -1,4 +1,4 @@
-/** Settings as a bottom sheet with toggles, a segmented effects control and a save backup. */
+/** Settings as a sheet of tabs: toggles, a segmented effects control and a save backup. */
 import { h, svgIcon } from "../dom";
 import { ICONS } from "../icons";
 import { settings, updateSettings, type EffectsLevel, type Settings } from "../settings";
@@ -6,42 +6,77 @@ import { sound } from "../sound";
 import { backupSolved, makeBackup, parseBackup, restoreBackup, todayKey, type Backup } from "../store";
 
 type BoolKey = { [K in keyof Settings]: Settings[K] extends boolean ? K : never }[keyof Settings];
+type Toggle = { key: BoolKey; label: string; hint?: string };
+type TabId = "sound" | "play" | "killer" | "queens" | "data";
 
-const GROUPS: { title: string; rows: { key: BoolKey; label: string; hint?: string }[] }[] = [
-  {
-    title: "Sound & feel",
-    rows: [
-      { key: "sfx", label: "Sound effects", hint: "Every move plays a note in the music." },
-      { key: "music", label: "Ambient music" },
-      { key: "haptics", label: "Haptics", hint: "Vibration on supported phones." },
-    ],
-  },
-  {
-    title: "Play",
-    rows: [
-      { key: "checkMistakes", label: "Flag mistakes instantly", hint: "Explains why a digit is wrong." },
-      { key: "autoClearNotes", label: "Auto-remove notes", hint: "Placing a digit clears the notes it rules out." },
-      { key: "autoNotes", label: "Show auto-notes", hint: "Dim digits the rules still allow; tap one in notes mode to strike it." },
-      { key: "highlightSame", label: "Highlight matching digits" },
-      { key: "showTimer", label: "Show timer" },
-    ],
-  },
-  {
-    title: "Killer",
-    rows: [
-      { key: "cageTint", label: "Tint cages" },
-      { key: "showCombos", label: "Show cage combinations", hint: "Lists the sums a selected cage can make." },
-    ],
-  },
-  {
-    title: "Queens",
-    rows: [{ key: "autoCross", label: "Auto-cross attacked cells", hint: "Shows ✕ where a queen rules cells out." }],
-  },
+const TABS: { id: TabId; label: string }[] = [
+  { id: "sound", label: "Sound & feel" },
+  { id: "play", label: "Play" },
+  { id: "killer", label: "Killer" },
+  { id: "queens", label: "Queens" },
+  { id: "data", label: "Data" },
 ];
+
+const TOGGLES: Record<Exclude<TabId, "data">, Toggle[]> = {
+  sound: [
+    { key: "sfx", label: "Sound effects", hint: "Every move plays a note in the music." },
+    { key: "music", label: "Ambient music" },
+    { key: "haptics", label: "Haptics", hint: "Vibration on supported phones." },
+  ],
+  play: [
+    { key: "checkMistakes", label: "Flag mistakes instantly", hint: "Explains why a digit is wrong." },
+    { key: "autoClearNotes", label: "Auto-remove notes", hint: "Placing a digit clears the notes it rules out." },
+    { key: "autoNotes", label: "Show auto-notes", hint: "Dim digits the rules still allow; tap one in notes mode to strike it." },
+    { key: "highlightSame", label: "Highlight matching digits" },
+    { key: "showTimer", label: "Show timer" },
+  ],
+  killer: [
+    { key: "cageTint", label: "Tint cages" },
+    { key: "showCombos", label: "Show cage combinations", hint: "Lists the sums a selected cage can make." },
+  ],
+  queens: [{ key: "autoCross", label: "Auto-cross attacked cells", hint: "Shows ✕ where a queen rules cells out." }],
+};
 
 export function openSettings(): void {
   sound.ui("open");
-  const rows: HTMLElement[] = [];
+  // Every panel is built once and switched with `hidden`, so a half-done restore survives a tab change.
+  const panels: Record<TabId, HTMLElement[]> = {
+    sound: [effectsRow(), ...TOGGLES.sound.map(toggleRow)],
+    play: TOGGLES.play.map(toggleRow),
+    killer: TOGGLES.killer.map(toggleRow),
+    queens: TOGGLES.queens.map(toggleRow),
+    data: [backupRow()],
+  };
+  const tabs = TABS.map((t) =>
+    h("button", { class: "tab", type: "button", role: "tab", id: `set-tab-${t.id}`, "aria-controls": `set-panel-${t.id}`, "data-tab": t.id, onclick: () => show(t.id) }, t.label),
+  );
+  const panelEls = TABS.map((t) =>
+    h("section", { class: "settings-list", role: "tabpanel", id: `set-panel-${t.id}`, "aria-labelledby": `set-tab-${t.id}`, "data-tab": t.id }, ...panels[t.id]),
+  );
+  const show = (id: TabId) => {
+    for (const b of tabs) b.setAttribute("aria-selected", String(b.dataset.tab === id));
+    for (const p of panelEls) p.hidden = p.dataset.tab !== id;
+  };
+  const close = () => {
+    sound.ui("close");
+    overlay.classList.add("closing");
+    overlay.addEventListener("animationend", () => overlay.remove(), { once: true });
+    removeEventListener("keydown", onKey);
+  };
+  const onKey = (e: KeyboardEvent) => e.key === "Escape" && close();
+  addEventListener("keydown", onKey);
+  const overlay = h(
+    "div",
+    { class: "overlay settings", role: "dialog", "aria-label": "Settings", "data-testid": "settings" },
+    h("header", { class: "sheet-head" }, h("h2", null, "Settings"), h("button", { class: "icon-btn", type: "button", "aria-label": "Close", onclick: close }, svgIcon(ICONS.close))),
+    h("nav", { class: "tabs settings-tabs", role: "tablist", "aria-label": "Settings" }, ...tabs),
+    ...panelEls,
+  );
+  show("sound");
+  document.body.append(overlay);
+}
+
+function effectsRow(): HTMLElement {
   const effects = h(
     "div",
     { class: "segmented", role: "radiogroup", "aria-label": "Effects" },
@@ -62,35 +97,17 @@ export function openSettings(): void {
       ),
     ),
   );
-  rows.push(h("div", { class: "set-row" }, h("div", null, h("b", null, "Effects"), h("small", null, "Calm is easiest on battery and motion.")), effects));
-  for (const g of GROUPS) {
-    rows.push(h("h3", null, g.title));
-    for (const r of g.rows) {
-      const input = h("input", { type: "checkbox", role: "switch", "data-key": r.key }) as HTMLInputElement;
-      input.checked = settings()[r.key];
-      input.addEventListener("change", () => {
-        updateSettings({ [r.key]: input.checked } as Partial<Settings>);
-        sound.ui("toggle");
-      });
-      rows.push(h("label", { class: "set-row" }, h("div", null, h("b", null, r.label), r.hint ? h("small", null, r.hint) : null), h("span", { class: "switch" }, input, h("i"))));
-    }
-  }
-  rows.push(h("h3", null, "Backup"), backupRow());
-  const close = () => {
-    sound.ui("close");
-    overlay.classList.add("closing");
-    overlay.addEventListener("animationend", () => overlay.remove(), { once: true });
-    removeEventListener("keydown", onKey);
-  };
-  const onKey = (e: KeyboardEvent) => e.key === "Escape" && close();
-  addEventListener("keydown", onKey);
-  const overlay = h(
-    "div",
-    { class: "overlay settings", role: "dialog", "aria-label": "Settings", "data-testid": "settings" },
-    h("header", { class: "sheet-head" }, h("h2", null, "Settings"), h("button", { class: "icon-btn", type: "button", "aria-label": "Close", onclick: close }, svgIcon(ICONS.close))),
-    h("div", { class: "settings-list" }, ...rows),
-  );
-  document.body.append(overlay);
+  return h("div", { class: "set-row" }, h("div", null, h("b", null, "Effects"), h("small", null, "Calm is easiest on battery and motion.")), effects);
+}
+
+function toggleRow(r: Toggle): HTMLElement {
+  const input = h("input", { type: "checkbox", role: "switch", "data-key": r.key }) as HTMLInputElement;
+  input.checked = settings()[r.key];
+  input.addEventListener("change", () => {
+    updateSettings({ [r.key]: input.checked } as Partial<Settings>);
+    sound.ui("toggle");
+  });
+  return h("label", { class: "set-row" }, h("div", null, h("b", null, r.label), r.hint ? h("small", null, r.hint) : null), h("span", { class: "switch" }, input, h("i")));
 }
 
 /**

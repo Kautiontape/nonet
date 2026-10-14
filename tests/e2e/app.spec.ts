@@ -661,6 +661,14 @@ test("learn and settings overlays open and close", async ({ page }) => {
   await page.keyboard.press("Escape");
   await expect(learn).toHaveCount(0);
   await page.getByTestId("open-settings").click();
+  // Sound & feel opens first; each tab shows only its own settings.
+  await expect(page.getByTestId("settings").getByRole("tab", { name: "Sound & feel" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("settings").locator('input[data-key="cageTint"]')).toBeHidden();
+  await page.getByTestId("settings").getByRole("tab", { name: "Killer" }).click();
+  await expect(page.getByTestId("settings").locator('input[data-key="haptics"]')).toBeHidden();
+  await page.screenshot({ path: "test-results/screens/settings-killer.png" });
+  await page.getByTestId("settings").getByRole("tab", { name: "Sound & feel" }).click();
+  await page.screenshot({ path: "test-results/screens/settings.png" });
   const sw = page.getByTestId("settings").locator('input[data-key="haptics"]');
   await sw.uncheck({ force: true });
   await page.keyboard.press("Escape");
@@ -762,6 +770,7 @@ test("backup: save a file, then restore it from the game menu over newer progres
 
   await page.getByTestId("open-settings").click();
   const settingsSheet = page.getByTestId("settings");
+  await settingsSheet.getByRole("tab", { name: "Data" }).click();
   const [download] = await Promise.all([page.waitForEvent("download"), settingsSheet.getByTestId("backup-save").click()]);
   await settingsSheet.locator(".set-row.backup").screenshot({ path: "test-results/screens/backup.png" });
   expect(download.suggestedFilename()).toMatch(/^nonet-backup-\d{4}-\d\d-\d\d\.json$/);
@@ -777,6 +786,7 @@ test("backup: save a file, then restore it from the game menu over newer progres
   await landed(page);
   await page.getByRole("button", { name: "Menu", exact: true }).click();
   await page.getByRole("button", { name: "Settings" }).click();
+  await settingsSheet.getByRole("tab", { name: "Data" }).click();
   await settingsSheet.getByTestId("restore-file").setInputFiles({ name: "notes.json", mimeType: "application/json", buffer: Buffer.from("{}") });
   await expect(settingsSheet.getByTestId("backup-status")).toContainText("isn't a Nonet backup");
   await settingsSheet.getByTestId("restore-file").setInputFiles(file);
