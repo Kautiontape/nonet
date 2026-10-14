@@ -22,7 +22,7 @@ import { Numpad } from "../components/numpad";
 import { SudokuBoard } from "../components/sudoku-board";
 import { showResult } from "../components/result-banner";
 import { clearToast, toast } from "../components/toast";
-import { flip, formatTime, h, shiftOnly, svgIcon } from "../dom";
+import { flip, formatTime, h, holdable, shiftOnly, svgIcon } from "../dom";
 import { callout } from "../fx/callout";
 import { levelOf } from "../fx/level-order";
 import { enterLevel, leaveLevel } from "../fx/levels";
@@ -76,8 +76,10 @@ class SudokuPlay implements Screen {
   /** The selection a drag builds on: the earlier clusters, so a second Shift-drag keeps them. */
   private dragBase: CellId[] = [];
   private activeDigit = 0;
-  /** A digit held on the pad: lit across the grid until the next move. */
+  /** A digit held on the pad: lit across the grid until the next move (and the active digit from then on). */
   private peekDigit = 0;
+  /** Every note out of view (hold the Notes tool). Not saved: a new game shows its notes. */
+  private notesHidden = false;
   /** Whether the cell being pressed was already the selection (a tap on it repeats the last digit). */
   private pressWasSelected = false;
   private notesMode = false;
@@ -158,8 +160,9 @@ class SudokuPlay implements Screen {
       h("button", { class: "icon-btn", type: "button", "aria-label": "Menu", onclick: () => this.openMenu() }, svgIcon(ICONS.menu)),
     );
 
-    const tool = (key: string, icon: string, label: string, onclick: () => void, extra = "") => {
-      const b = h("button", { class: `tool ${extra}`, type: "button", "aria-label": label, "data-testid": `tool-${key}`, onclick }, svgIcon(icon), h("span", null, label)) as HTMLButtonElement;
+    const tool = (key: string, icon: string, label: string, onclick: () => void, extra = "", onHold?: () => void) => {
+      const b = h("button", { class: `tool ${extra}`, type: "button", "aria-label": label, "data-testid": `tool-${key}`, ...(onHold ? {} : { onclick }) }, svgIcon(icon), h("span", null, label)) as HTMLButtonElement;
+      if (onHold) holdable(b, onclick, onHold);
       this.tools[key] = b;
       return b;
     };
@@ -168,7 +171,7 @@ class SudokuPlay implements Screen {
       { class: "tools" },
       tool("undo", ICONS.undo, "Undo", () => this.game.undo()),
       tool("erase", ICONS.erase, "Erase", () => this.erase()),
-      tool("notes", ICONS.pencil, "Notes", () => this.toggleNotes(), "notes-tool"),
+      tool("notes", ICONS.pencil, "Notes", () => this.toggleNotes(), "notes-tool", () => this.toggleHidden()),
       tool("auto", ICONS.wand, "Auto notes", () => this.toggleAutoNotes()),
       tool("hint", ICONS.bulb, "Hint", () => this.openHint(), "hint-tool"),
     );
@@ -298,7 +301,9 @@ class SudokuPlay implements Screen {
     this.tools.undo!.disabled = !g.canUndo();
     this.tools.notes!.classList.toggle("on", notes);
     this.tools.notes!.setAttribute("aria-pressed", String(this.notesMode));
-    this.tools.notes!.querySelector("span")!.textContent = notes ? "Notes on" : "Notes";
+    this.tools.notes!.querySelector("span")!.textContent = notes ? "Notes on" : this.notesHidden ? "Hidden" : "Notes";
+    this.tools.notes!.classList.toggle("hidden-notes", this.notesHidden);
+    this.el.classList.toggle("notes-hidden", this.notesHidden);
     this.tools.auto!.classList.toggle("on", st.autoNotes);
     this.tools.auto!.setAttribute("aria-pressed", String(st.autoNotes));
     this.el.classList.toggle("notes-mode", notes);
@@ -312,7 +317,9 @@ class SudokuPlay implements Screen {
         ? h("span", { class: "notes-flag" }, `${this.multi.length} cells · digits pencil into all`)
         : notes
           ? h("span", { class: "notes-flag" }, "✎ Pencil mode")
-          : h("span", { class: "dim" }, `${Math.round(p * 100)}%`),
+          : this.notesHidden
+            ? h("span", { class: "notes-flag" }, "Notes hidden · hold Notes to show")
+            : h("span", { class: "dim" }, `${Math.round(p * 100)}%`),
     );
     this.renderCageBar();
     this.app.bg.setIntensity(0.15 + p * 0.85);
@@ -450,10 +457,11 @@ class SudokuPlay implements Screen {
     if (this.activeDigit && !this.game.given[c] && !this.game.grid[c]) this.onDigit(this.activeDigit);
   }
 
-  /** A digit held on the pad lights up across the grid; nothing is placed. */
+  /** A digit held on the pad lights up across the grid; nothing is placed, but it is the active digit now. */
   private peek(d: number): void {
     sound.unlock();
     this.peekDigit = d;
+    this.activeDigit = d;
     sound.ui("select");
     buzz("note");
     this.render();
@@ -502,8 +510,22 @@ class SudokuPlay implements Screen {
 
   private toggleNotes(): void {
     this.notesMode = !this.notesMode;
-    if (this.notesMode) sound.note(5, true);
-    else sound.ui("toggle");
+    if (this.notesMode) {
+      this.notesHidden = false; // about to pencil: the notes come back
+      sound.note(5, true);
+    } else sound.ui("toggle");
+    buzz("note");
+    this.render();
+  }
+
+  /** Every note out of view, or back (hold the Notes tool, or V). Hiding ends pencil mode. */
+  private toggleHidden(): void {
+    this.notesHidden = !this.notesHidden;
+    if (this.notesHidden) {
+      this.notesMode = false;
+      toast("Notes hidden. Hold Notes again to show them.", "info", 4000);
+    }
+    sound.ui("toggle");
     buzz("note");
     this.render();
   }
@@ -515,7 +537,7 @@ class SudokuPlay implements Screen {
     sound.ui("toggle");
     buzz("note");
     if (on && firstTime("tip-auto-notes"))
-      toast("Dim digits are what the rules still allow. Tap one in notes mode to strike it; your own notes stay bright.", "info", 6000);
+      toast("Auto notes show what the rules still allow. Tap one in notes mode to strike it.", "info", 6000);
   }
 
   /**
@@ -558,6 +580,7 @@ class SudokuPlay implements Screen {
       return this.toggleNotes();
     }
     if (k === "a" || k === "A") return this.toggleAutoNotes();
+    if (k === "v" || k === "V") return this.toggleHidden();
     if (k === "h" || k === "H") return this.sheet.isOpen ? this.sheet.advance() : this.openHint();
     if ((k === "l" || k === "L") && this.mode === "killer") return this.setLens(LENS_CYCLE[this.lensKind ?? "off"]);
     const moves: Record<string, [number, number]> = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] };

@@ -50,6 +50,53 @@ test("classic: notes mode pencils candidates; holding a digit lights it up and p
   await expect(cellLocator(page, empty.cell).locator(".notes i.on")).toHaveCount(1);
 });
 
+test("classic: a held digit is the active digit, so a tap on the selected square enters it, not the digit before", async ({ page }) => {
+  await page.goto("/?play=classic-easy");
+  const board = await readBoard(page);
+  const [a, b, c] = board.filter((x) => !x.value);
+  await cellLocator(page, a!.cell).click();
+  await digitKey(page, 7).click(); // 7 is the last digit entered
+  await cellLocator(page, b!.cell).click();
+  await digitKey(page, 9).click({ delay: 600 }); // hold: 9 lights up, nothing is placed
+  await expect(cellLocator(page, b!.cell).locator(".v")).toHaveText("");
+  await expect(digitKey(page, 9)).toHaveClass(/active/);
+  await cellLocator(page, b!.cell).click(); // a tap on the selected square repeats the active digit
+  await expect(cellLocator(page, b!.cell).locator(".v")).toHaveText("9");
+  // The same in pencil mode: the held digit is what the next tap pencils.
+  await page.getByTestId("tool-notes").click();
+  await cellLocator(page, c!.cell).click();
+  await digitKey(page, 3).click();
+  await digitKey(page, 5).click({ delay: 600 });
+  await cellLocator(page, c!.cell).click();
+  await expect(cellLocator(page, c!.cell).locator(".notes i.on")).toHaveText(["3", "5"]);
+});
+
+test("hold the Notes tool to hide every note; hold again, or go to pencil mode, to show them", async ({ page }) => {
+  await page.goto("/?play=classic-easy");
+  const board = await readBoard(page);
+  const empty = board.find((x) => !x.value)!;
+  await cellLocator(page, empty.cell).click();
+  await page.getByTestId("tool-notes").click();
+  await digitKey(page, 3).click();
+  const note = cellLocator(page, empty.cell).locator(".notes i.on");
+  await expect(note).toBeVisible();
+  await page.getByTestId("tool-notes").click({ delay: 600 }); // hold: hidden, and pencil mode ends
+  await expect(page.locator(".play.notes-hidden")).toHaveCount(1);
+  await expect(page.locator(".play.notes-mode")).toHaveCount(0);
+  await expect(note).toBeHidden();
+  await expect(page.getByTestId("tool-notes")).toContainText("Hidden");
+  await expect(page.locator(".stats")).toContainText("Notes hidden");
+  await page.screenshot({ path: "test-results/screens/notes-hidden.png" });
+  await page.getByTestId("tool-notes").click({ delay: 600 }); // hold again: back
+  await expect(page.locator(".play.notes-hidden")).toHaveCount(0);
+  await expect(note).toBeVisible();
+  await page.keyboard.press("v"); // the keyboard way
+  await expect(note).toBeHidden();
+  await page.getByTestId("tool-notes").click(); // a tap goes to pencil mode, which shows notes
+  await expect(page.locator(".play.notes-mode")).toHaveCount(1);
+  await expect(note).toBeVisible();
+});
+
 test("classic: holding Shift turns notes mode on until it's let go", async ({ page }) => {
   await page.goto("/?play=classic-easy");
   const empty = (await readBoard(page)).find((x) => !x.value)!;
@@ -753,6 +800,36 @@ test("killer: Auto notes is a layer — dim digits you can strike, under your ow
   expect(await page.locator(".notes i.auto").count()).toBeGreaterThan(0);
 });
 
+test("notes focus on the selection: its peers' notes brighten, a far square's stay quiet", async ({ page }) => {
+  await page.goto("/?play=classic-easy");
+  const cells = await readBoard(page);
+  await page.getByTestId("tool-auto").click();
+  await expect(page.locator(".notes i.auto").first()).toBeAttached();
+  const empty = cells.filter((c) => !c.value);
+  const a = empty[0]!;
+  const peer = empty.find((c) => c.r === a.r && c.c !== a.c)!;
+  const far = empty.find((c) => c.r !== a.r && c.c !== a.c && c.b !== a.b)!;
+  const autoNote = (cell: number) => cellLocator(page, cell).locator(".notes i.auto").first();
+  // Note colours transition for 0.15s: read one once two reads 200ms apart agree.
+  const colour = async (cell: number): Promise<string> => {
+    const read = () => autoNote(cell).evaluate((el) => getComputedStyle(el).color);
+    let last = await read();
+    for (;;) {
+      await page.waitForTimeout(200);
+      const now = await read();
+      if (now === last) return now;
+      last = now;
+    }
+  };
+  // Nothing selected: every note is quiet, the same colour everywhere.
+  const quiet = await colour(far.cell);
+  expect(await colour(peer.cell)).toBe(quiet);
+  await cellLocator(page, a.cell).click();
+  expect(await colour(peer.cell)).not.toBe(quiet);
+  expect(await colour(far.cell)).toBe(quiet);
+  await page.screenshot({ path: "test-results/screens/notes-focus.png" });
+});
+
 test("backup: save a file, then restore it from the game menu over newer progress", async ({ page }, testInfo) => {
   // Pin the download path: a touch device with file sharing would open the share sheet instead.
   await page.addInitScript(() => Object.defineProperty(Navigator.prototype, "canShare", { value: undefined }));
@@ -777,7 +854,11 @@ test("backup: save a file, then restore it from the game menu over newer progres
   const file = testInfo.outputPath("backup.json");
   await download.saveAs(file);
   const backup = JSON.parse(readFileSync(file, "utf8"));
-  expect(backup).toMatchObject({ app: "nonet", version: 1, data: { progress: { total: 3 } } });
+  // The seed was the old shape: on load its count became this device's, and the backup is the new one.
+  expect(backup).toMatchObject({ app: "nonet", version: 2 });
+  expect(backup.data.progress.total).toBeUndefined();
+  expect(Object.values(backup.data.progress.counters as Record<string, { total: number }>).map((c) => c.total)).toEqual([3]);
+  expect(backup.data.device).toBeUndefined();
   expect(backup.data["game.classic"]).toBeTruthy();
 
   // Start over, then restore mid-game: the open game must not save over the backup on the way out.

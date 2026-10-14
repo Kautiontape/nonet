@@ -36,22 +36,26 @@ in §4.
 ## 2. Core play
 
 - Sudoku: tap cell → tap digit. Notes mode toggle; **hold a digit on the pad = light that digit up
-  across the grid** (places nothing; only a tap places). Erase, undo/redo (unlimited). Drag across cells — or Shift / Ctrl / ⌘-click — to
+  across the grid** (places nothing; only a tap places) and it is the active digit from then on,
+  so a tap on the selected square enters it. **Hold the Notes tool = hide every note** until it
+  is held again or tapped (pencil mode shows notes); not saved. Erase, undo/redo (unlimited). Drag across cells — or Shift / Ctrl / ⌘-click — to
   select several; a digit then pencils into all of them (or comes out of all, if all have it),
   and Erase wipes them all (digits and notes), each as one undo step. A cell acts on release, not
   on press: pressing the selected cell to start a drag never pencils anything, while a plain tap
   on it repeats the last digit. **Hold an empty square** (a deliberate ~1.5 s press, one knob in
   `sudoku-board.ts`) and a wheel of digit dots floats around it; flick toward one and let go to
   enter it — as an answer or a note, following the mode — or release near the centre to cancel.
-- **Auto notes** is a layer, not a fill: dim digits under your own notes, showing what the rules
+- **Auto notes** is a layer, not a fill: digits under your own notes, showing what the rules
   still allow in every empty square (cage sums applied in killer), recomputed as you play. What
-  you see is what you toggle: in notes mode, tap a dim digit to strike it, tap a struck digit to
+  you see is what you toggle: in notes mode, tap an auto digit to strike it, tap a struck digit to
   bring it back, and a digit the layer doesn't show goes in as your own bright note. Your notes
   take precedence in a square; Erase clears its strikes too. The layer is a setting (toolbar
   button or **A**), so it follows you to the next level, and strikes are saved with the game.
 - Placing a digit auto-removes it from notes in the same row/col/box/**cage**, and (killer) takes
   out of the cage's other notes any digit its remaining sum no longer allows (setting).
 - Highlights: selected cell, its peers, its cage, every cell with the same digit, matching notes.
+  Notes show at full strength in the selected cell, its peers and its cage and stay quiet (but
+  readable, 4.5:1 or better) elsewhere; your own notes are warm, auto notes cool.
 - Digit pad shows how many of each digit remain; finished digits dim.
 - Killer: a cage bar lists the selected cage's combinations, striking out ones that clash with
   digits already placed in a house the cage lives in (setting). Its **Σ45 lens** works the 45 rule
@@ -72,7 +76,7 @@ in §4.
   **Keep** makes the scratch real as one undo step, checked like any other move.
 - Keyboard (sudoku / killer): 1–9 place, Shift+digit pencils (read from the physical key, so it
   works on any layout); while Shift is held the screen shows notes mode and a numpad tap pencils
-  too; Space or N toggles Notes; arrows move (wrapping), Shift+arrow — like
+  too; Space or N toggles Notes; V hides or shows every note; arrows move (wrapping), Shift+arrow — like
   Shift / Ctrl / ⌘-click — adds cells to the selection; Backspace / Delete / 0 erase the
   selection; H opens the hint or shows the next rung, Enter does what the sheet's main button
   does (next rung, or apply); A toggles Auto notes; L cycles the Σ45 lens (killer); Esc steps back one layer (game menu
@@ -237,7 +241,19 @@ Per mode-difficulty: solved ids, best time; total solves; daily streak; per-tech
 (shown on the Learn screen); a results history (last 300 levels: time, mistakes, hints, perfect,
 record / first clear). **Scores** (home footer and the in-game menu) shows records per mode and
 difficulty and the recent levels, filterable by mode. Levels are numbered by their place in the
-pack. Everything is local (localStorage), no accounts.
+pack. Everything is saved in the browser (localStorage); no accounts.
+
+**Sync across devices** (Settings → Data, above Backup): *Turn on* makes a 16-character sync
+code (four groups, shown large, with *Copy* and *Share link*), and from then on scores, streak,
+hint counts, results, the gameplay settings (not sound, music, volume, haptics or effects) and
+games in progress are kept the same on every device that joins with that code (*Have a code?*,
+typed in any case with or without dashes, or by opening the shared link, which asks before
+joining). Joining merges what is already on the device; it never replaces. Nobody plays on two
+devices at once, but a device may have played offline: solved lists merge as unions, best times
+as minimums, counts per device, and the later change wins for settings and games in progress. A
+status line says "Synced just now", "Offline, will sync later", "Couldn't sync" or "Update Nonet
+to sync". *Turn off* keeps everything on the device and asks whether to delete the cloud copy.
+The code is the only secret: the server stores one file per code hash, no accounts, no email.
 
 **Backup** (Settings → Data): *Save backup* writes everything (progress, results, settings, games in
 progress) to a `nonet-backup-YYYY-MM-DD.json` file: the share sheet on phones that can share
@@ -249,8 +265,7 @@ iPhone a Home Screen app keeps its storage apart from Safari).
 
 ## 7. Non-goals (for now)
 
-Accounts, cloud sync, leaderboards, ads, purchases; variant sudokus beyond classic/killer;
-camera import.
+Accounts, leaderboards, ads, purchases; variant sudokus beyond classic/killer; camera import.
 
 ## 8. Ideas parking lot
 

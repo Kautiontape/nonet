@@ -28,7 +28,7 @@ describe("backup", () => {
     store.save("game.killer", { difficulty: "hard", entry: "x", state: { elapsedMs: 5 } });
     memory.set("someone-else", "kept");
     const backup = store.makeBackup(new Date("2026-10-14T12:00:00Z"));
-    expect(backup).toMatchObject({ app: "nonet", version: 1, exported: "2026-10-14T12:00:00.000Z" });
+    expect(backup).toMatchObject({ app: "nonet", version: 2, exported: "2026-10-14T12:00:00.000Z" });
     expect(Object.keys(backup.data).sort()).toEqual(["game.killer", "progress", "results", "settings"]);
 
     const text = JSON.stringify(backup);
@@ -63,7 +63,8 @@ describe("backup", () => {
     expect(store.parseBackup("not json")).toBeNull();
     expect(store.parseBackup("[]")).toBeNull();
     expect(store.parseBackup(JSON.stringify({ app: "other", version: 1, data: {} }))).toBeNull();
-    expect(store.parseBackup(JSON.stringify({ app: "nonet", version: 2, data: {} }))).toBeNull();
+    expect(store.parseBackup(JSON.stringify({ app: "nonet", version: 3, data: {} }))).toBeNull();
+    expect(store.parseBackup(JSON.stringify({ app: "nonet", version: 2, data: {} }))).toMatchObject({ version: 2 });
     expect(store.parseBackup(JSON.stringify({ app: "nonet", version: 1, data: [] }))).toBeNull();
     expect(store.parseBackup(JSON.stringify({ app: "nonet", version: 1, data: {} }))).toMatchObject({ exported: "", data: {} });
   });

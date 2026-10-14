@@ -1,13 +1,31 @@
 /**
- * Local persistence. Everything lives in this browser only; every access is guarded because
- * storage can be unavailable (private windows, blocked site data) and the game must still work.
+ * Local persistence. Everything is saved in this browser (sync copies it elsewhere, see
+ * `./sync.ts`); every access is guarded because storage can be unavailable (private windows,
+ * blocked site data) and the game must still work.
  */
+import type { Difficulty } from "../engine/types";
+import type { Mode } from "../game/packs";
+import { backupSolved, BACKUP_VERSION, makeEnvelope, parseBackup, type Backup } from "../sync/envelope";
+import { RESULTS_MAX } from "../sync/merge";
+import { EMPTY_COUNTERS, normalizeProgress, sumCounters, type ProgressRecord } from "../sync/progress";
+
+export { backupSolved, BACKUP_VERSION, parseBackup, type Backup };
+
 // From the game's first name, Cage Coach. Kept so existing saves and stats survive the rename.
 const PREFIX = "cagecoach.";
 
 // Set by a restore. The page is about to load again, and nothing the old page still holds (a
 // game's autosave, the cached settings) may write over the backup before it goes.
 let frozen = false;
+
+type ChangeListener = (key: string) => void;
+const listeners = new Set<ChangeListener>();
+
+/** Called with the key after every `save` and `remove`, but not after a `saveQuiet`. */
+export function onChange(fn: ChangeListener): () => void {
+  listeners.add(fn);
+  return () => listeners.delete(fn);
+}
 
 export function load<T>(key: string, fallback: T): T {
   try {
@@ -18,13 +36,24 @@ export function load<T>(key: string, fallback: T): T {
   }
 }
 
-export function save(key: string, value: unknown): void {
-  if (frozen) return;
+function write(key: string, value: unknown): boolean {
+  if (frozen) return false;
   try {
     localStorage.setItem(PREFIX + key, JSON.stringify(value));
+    return true;
   } catch {
     /* storage full or unavailable: keep playing */
+    return false;
   }
+}
+
+export function save(key: string, value: unknown): void {
+  if (write(key, value)) for (const fn of listeners) fn(key);
+}
+
+/** Save without telling listeners: for what sync brings in, so a pull never sets off a push. */
+export function saveQuiet(key: string, value: unknown): void {
+  write(key, value);
 }
 
 export function remove(key: string): void {
@@ -32,36 +61,50 @@ export function remove(key: string): void {
   try {
     localStorage.removeItem(PREFIX + key);
   } catch {
-    /* ignore */
+    return;
   }
+  for (const fn of listeners) fn(key);
 }
 
-export interface Progress {
-  /** Solved puzzle ids per "mode-difficulty". */
-  solved: Record<string, string[]>;
-  /** Best time (ms) per "mode-difficulty". */
-  best: Record<string, number>;
-  /** Hint steps applied per technique id (for the Learn screen). */
-  hinted: Record<string, number>;
-  /** Total puzzles solved. */
-  total: number;
-  /** Consecutive days with a solve. */
-  streak: { last: string; days: number };
+let device: string | null = null;
+
+/**
+ * This browser's id, made once: progress counts are kept per device so that two devices' counts
+ * add up. Left out of backups, so a restored backup counts as a new device from then on.
+ */
+export function deviceId(): string {
+  if (device) return device;
+  device = load<string | null>("device", null);
+  if (!device) {
+    device = [...crypto.getRandomValues(new Uint8Array(8))].map((b) => b.toString(16).padStart(2, "0")).join("");
+    save("device", device);
+  }
+  return device;
 }
+
+/** Keys that describe this browser, not the player: never in a backup. */
+const DEVICE_ONLY = new Set(["device"]);
+
+/** The stored record plus the sums the screens show. */
+export interface Progress extends ProgressRecord {
+  /** Total puzzles solved, every device added up. */
+  total: number;
+  /** Hint steps applied per technique id, every device added up (for the Learn screen). */
+  hinted: Record<string, number>;
+}
+
+const withSums = (p: ProgressRecord): Progress => ({ ...p, ...sumCounters(p.counters) });
 
 export function loadProgress(): Progress {
-  const p = load<Partial<Progress>>("progress", {});
-  return {
-    solved: p.solved ?? {},
-    best: p.best ?? {},
-    hinted: p.hinted ?? {},
-    total: p.total ?? 0,
-    streak: p.streak ?? { last: "", days: 0 },
-  };
+  const { progress, legacy } = normalizeProgress(load<unknown>("progress", null), deviceId());
+  // A record from before per-device counters is written once in the new shape.
+  if (legacy) saveProgress(progress);
+  return withSums(progress);
 }
 
-export function saveProgress(p: Progress): void {
-  save("progress", p);
+export function saveProgress(p: ProgressRecord): void {
+  const { solved, best, streak, counters } = p;
+  save("progress", { solved, best, streak, counters });
 }
 
 export function todayKey(d = new Date()): string {
@@ -75,7 +118,8 @@ export function recordSolve(mode: string, difficulty: string, id: string, ms: nu
   if (!list.includes(id)) list.push(id);
   p.solved[key] = list;
   if (!p.best[key] || ms < p.best[key]!) p.best[key] = ms;
-  p.total++;
+  const mine = p.counters[deviceId()] ?? EMPTY_COUNTERS;
+  p.counters[deviceId()] = { ...mine, total: mine.total + 1 };
   const today = todayKey();
   if (p.streak.last !== today) {
     const y = new Date();
@@ -83,7 +127,7 @@ export function recordSolve(mode: string, difficulty: string, id: string, ms: nu
     p.streak = { last: today, days: p.streak.last === todayKey(y) ? p.streak.days + 1 : 1 };
   }
   saveProgress(p);
-  return p;
+  return withSums(p);
 }
 
 /** One finished level, as the results banner and the Scores screen show it. */
@@ -106,8 +150,6 @@ export interface ResultEntry {
   /** When it was solved (ms since the epoch). */
   at: number;
 }
-
-const RESULTS_MAX = 300;
 
 /** Finished levels, newest first. */
 export function loadResults(): ResultEntry[] {
@@ -135,8 +177,34 @@ export function finishPuzzle(
 
 export function recordHint(technique: string): void {
   const p = loadProgress();
-  p.hinted[technique] = (p.hinted[technique] ?? 0) + 1;
+  const mine = p.counters[deviceId()] ?? EMPTY_COUNTERS;
+  p.counters[deviceId()] = { total: mine.total, hinted: { ...mine.hinted, [technique]: (mine.hinted[technique] ?? 0) + 1 } };
   saveProgress(p);
+}
+
+export interface SavedGame<S = unknown> {
+  difficulty: Difficulty;
+  /** Pack entry of the puzzle being played (so resuming never depends on pack contents). */
+  entry: unknown;
+  state: S;
+  /** When it was last saved (ms since the epoch); saves from before sync have none. */
+  savedAt?: number;
+}
+
+/** What a finished or abandoned game leaves in its slot, so another device's older save can't bring it back. */
+export interface ClearedGame {
+  clearedAt: number;
+}
+
+export function loadSaved<S>(mode: Mode): SavedGame<S> | null {
+  const v = load<Partial<SavedGame<S>> | ClearedGame | null>(`game.${mode}`, null);
+  return v && "state" in v && v.state !== undefined ? (v as SavedGame<S>) : null;
+}
+export function storeSaved(mode: Mode, game: SavedGame, now = Date.now()): void {
+  save(`game.${mode}`, { ...game, savedAt: now });
+}
+export function clearSaved(mode: Mode, now = Date.now()): void {
+  save(`game.${mode}`, { clearedAt: now } satisfies ClearedGame);
 }
 
 /** Show a one-time tip: returns true the first time a key is seen. */
@@ -146,18 +214,6 @@ export function firstTime(key: string): boolean {
   save("seen", [...seen, key]);
   return true;
 }
-
-/** A backup file: everything saved in this browser, under a header that says what it is. */
-export interface Backup {
-  app: "nonet";
-  version: number;
-  /** When it was made (ISO 8601). */
-  exported: string;
-  /** Each saved value by its key (without the prefix). */
-  data: Record<string, unknown>;
-}
-
-const BACKUP_VERSION = 1;
 
 /** Every key saved in this browser, without the prefix. Listed at runtime, so new keys come along. */
 function savedKeys(): string[] {
@@ -173,33 +229,15 @@ function savedKeys(): string[] {
   return keys;
 }
 
+/** A backup file: everything saved in this browser about the player, under a header that says what it is. */
 export function makeBackup(now = new Date()): Backup {
   const data: Record<string, unknown> = {};
   for (const k of savedKeys()) {
+    if (DEVICE_ONLY.has(k)) continue;
     const v = load<unknown>(k, undefined);
     if (v !== undefined) data[k] = v;
   }
-  return { app: "nonet", version: BACKUP_VERSION, exported: now.toISOString(), data };
-}
-
-const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
-
-/** Read a backup file's text: null if it isn't a backup this version can restore. */
-export function parseBackup(text: string): Backup | null {
-  let b: unknown;
-  try {
-    b = JSON.parse(text);
-  } catch {
-    return null;
-  }
-  if (!isRecord(b) || b.app !== "nonet" || typeof b.version !== "number" || b.version > BACKUP_VERSION || !isRecord(b.data)) return null;
-  return { app: "nonet", version: b.version, exported: typeof b.exported === "string" ? b.exported : "", data: b.data };
-}
-
-/** Total solves recorded in a backup, if it has any progress. */
-export function backupSolved(b: Backup): number {
-  const p = b.data.progress;
-  return isRecord(p) && typeof p.total === "number" ? p.total : 0;
+  return makeEnvelope(data, now);
 }
 
 /**

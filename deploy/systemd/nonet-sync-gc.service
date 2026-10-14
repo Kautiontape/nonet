@@ -1,0 +1,6 @@
+[Unit]
+Description=Delete Nonet sync files untouched for a year
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/find /var/lib/nonet-sync -name '*.json' -type f -mtime +365 -delete

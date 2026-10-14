@@ -11,9 +11,11 @@ import { mountCallouts } from "./ui/fx/callout";
 import { Fx } from "./ui/fx/particles";
 import { createHome } from "./ui/screens/home";
 import { createQueensPlay } from "./ui/screens/queens-play";
+import { openSettings } from "./ui/screens/settings-sheet";
 import { createSudokuPlay } from "./ui/screens/sudoku-play";
 import { audio } from "./ui/audio/synth";
 import { connectSound, sound } from "./ui/sound";
+import { startSync, SYNC_AVAILABLE } from "./ui/sync";
 
 connectSound(audio);
 
@@ -34,6 +36,7 @@ app.register({
     mode === "queens" ? createQueensPlay(a, difficulty, resume, avoid) : createSudokuPlay(a, mode, difficulty, resume, avoid),
 });
 app.onError = (message) => toast(message, "bad");
+if (SYNC_AVAILABLE) startSync(app);
 
 // Backspace erases in the game; it must never navigate the browser back. Capture phase, so it
 // runs before any screen handler and regardless of which element has focus.
@@ -73,6 +76,11 @@ if (params.has("restored")) {
   history.replaceState(null, "", location.pathname);
   toast("Backup restored.", "good");
 }
+// A sync link from another device (?sync=CODE) opens the join prompt; it wins over ?play=.
+const joinCode = params.get("sync");
 const [mode, difficulty] = (play ?? "").split("-") as [Mode, Difficulty];
-if (["classic", "killer", "queens"].includes(mode) && DIFFICULTIES.includes(difficulty)) void app.play(mode, difficulty);
+if (joinCode !== null && SYNC_AVAILABLE) {
+  history.replaceState(null, "", location.pathname);
+  void app.home().then(() => openSettings({ tab: "data", join: joinCode }));
+} else if (["classic", "killer", "queens"].includes(mode) && DIFFICULTIES.includes(difficulty)) void app.play(mode, difficulty);
 else void app.home();

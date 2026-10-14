@@ -1009,21 +1009,25 @@ button:disabled {
   background: rgba(255, 77, 109, 0.18);
 }
 
-/* notes */
+/* notes — two axes (docs/design/2026-10-14-notes-visibility.md). Hue says whose: the player's
+   notes are warm, the auto layer's cool. Brightness says where: quiet across the board, full
+   strength in the selected square and its row, column, box and cage. Every colour keeps at least
+   4.5:1 over every background its state meets, in all four themes; tests/ui/notes-contrast.test.ts
+   holds these lines to that, so a note can never fade out again. */
 .notes {
   position: absolute;
-  inset: 5%;
+  inset: 3%;
   display: grid;
   grid-template: repeat(3, 1fr) / repeat(3, 1fr);
-  font-size: calc(var(--cell) * 0.235);
-  font-weight: 500;
-  color: #9ca8d4;
+  font-size: calc(var(--cell) * 0.29);
+  font-weight: 600;
+  color: #aa9f84;
   pointer-events: none;
 }
 
 .cell.has-sum .notes {
-  top: 25%;
-  font-size: calc(var(--cell) * 0.2);
+  top: 28%;
+  font-size: calc(var(--cell) * 0.245);
 }
 
 .notes i {
@@ -1033,21 +1037,28 @@ button:disabled {
   opacity: 0;
   line-height: 1;
   border-radius: 50%;
-  transition: opacity 0.15s;
+  transition: opacity 0.15s, color 0.15s;
 }
 
 .notes i.on {
   opacity: 1;
 }
 
-/* The auto-note layer: the machine's digits, dim and cooler than the player's. */
+/* The auto-note layer: the machine's digits, cool where the player's are warm. Never faint — at
+   45% opacity a 1 vanished (it's one thin stroke). */
 .notes i.auto {
-  opacity: 0.45;
-  color: #7d88aa;
+  opacity: 1;
+  color: #8e9ac3;
 }
 
-.notes i.auto.match {
-  opacity: 0.85;
+/* Focus: the selected square and its houses and cage show notes at full strength; the rest of
+   the board stays quiet. :where() keeps these below .notes i.match, which still wins. */
+:where(.cell.sel, .cell.msel, .cell.peer, .cell.cage-peer) .notes {
+  color: #f3e9cb;
+}
+
+:where(.cell.sel, .cell.msel, .cell.peer, .cell.cage-peer) .notes i.auto {
+  color: #cfd8f6;
 }
 
 .notes i.match {
@@ -1058,6 +1069,20 @@ button:disabled {
 
 .cell.filled .notes {
   display: none;
+}
+
+/* Hidden notes (hold the Notes tool): every note steps out of view until shown again. A hint's
+   picture still draws, since hinting shows and hides notes by its own rules. */
+.play.notes-hidden .board:not(.hinting) .notes {
+  visibility: hidden;
+}
+
+.tool.hidden-notes .icon {
+  opacity: 0.4;
+}
+
+.tool.hidden-notes span {
+  color: var(--a2);
 }
 
 /* killer */
@@ -2102,7 +2127,8 @@ body:has(.play.hint-open) .toasts {
   background: #fff;
 }
 
-.set-row.backup {
+.set-row.backup,
+.set-row.sync {
   flex-direction: column;
   align-items: stretch;
   gap: 12px;
@@ -2136,6 +2162,55 @@ body:has(.play.hint-open) .toasts {
 .set-row .backup-status {
   margin: 0;
   color: var(--ink-dim);
+}
+
+.sync-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sync-prompt {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ink-dim);
+}
+
+/* The code: big and spaced, in a face where 0 and 8 can't be confused; one tap selects all of it. */
+.sync-code {
+  align-self: flex-start;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 20px;
+  letter-spacing: 0.08em;
+  user-select: all;
+  -webkit-user-select: all;
+}
+
+.sync-input {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ink);
+  font: inherit;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 18px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sync-input::placeholder {
+  color: var(--ink-faint);
+  letter-spacing: 0.04em;
+}
+
+.sync-input:focus {
+  outline: 2px solid var(--ink-dim);
+  outline-offset: 2px;
 }
 
 .segmented {

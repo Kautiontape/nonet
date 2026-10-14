@@ -9,7 +9,7 @@ import type { Fx } from "./fx/particles";
 import { applyTheme, THEMES, type ThemeName } from "./palette";
 import { onSettings, settings } from "./settings";
 import { sound } from "./sound";
-import { load, remove, save } from "./store";
+import { save } from "./store";
 
 export interface Screen {
   el: HTMLElement;
@@ -18,27 +18,13 @@ export interface Screen {
 
 export const MODE_THEME: Record<Mode, ThemeName> = { classic: "abyss", killer: "ember", queens: "aurora" };
 
-export interface SavedGame<S = unknown> {
-  difficulty: Difficulty;
-  /** Pack entry of the puzzle being played (so resuming never depends on pack contents). */
-  entry: unknown;
-  state: S;
-}
-
-export function loadSaved<S>(mode: Mode): SavedGame<S> | null {
-  return load<SavedGame<S> | null>(`game.${mode}`, null);
-}
-export function storeSaved(mode: Mode, game: SavedGame): void {
-  save(`game.${mode}`, game);
-}
-export function clearSaved(mode: Mode): void {
-  remove(`game.${mode}`);
-}
+export { clearSaved, loadSaved, storeSaved, type ClearedGame, type SavedGame } from "./store";
 
 type ScreenFactory = (app: App) => Screen | Promise<Screen>;
 
 export class App {
   private current: Screen | null = null;
+  private kind: "home" | "play" | null = null;
   private factories: {
     home?: ScreenFactory;
     play?: (app: App, mode: Mode, difficulty: Difficulty, resume: boolean, avoid?: string) => Promise<Screen>;
@@ -82,16 +68,24 @@ export class App {
   async home(): Promise<void> {
     const s = await this.factories.home!(this);
     this.mount(s, "prism");
+    this.kind = "home";
     this.bg.setIntensity(0.15);
+  }
+
+  /** Build the home screen again if it is showing: after sync brings scores or a game in progress from another device. */
+  refreshHome(): void {
+    if (this.kind === "home") void this.home();
   }
 
   async play(mode: Mode, difficulty: Difficulty, resume = false, avoid?: string): Promise<void> {
     // Tear down first so the old screen's final save can't overwrite the new game's.
     this.current?.destroy();
     this.current = null;
+    this.kind = null;
     try {
       const s = await this.factories.play!(this, mode, difficulty, resume, avoid);
       this.mount(s, MODE_THEME[mode]);
+      this.kind = "play";
       save("lastMode", mode);
     } catch (err) {
       console.error(err);

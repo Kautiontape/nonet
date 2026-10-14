@@ -20,7 +20,8 @@ feel. Read `docs/SPEC.md` (what), `docs/ARCHITECTURE.md` (how), `docs/MILESTONES
 - `npx tsx scripts/audio-check.ts` — offline render + level checks for the synth (needs Chromium).
 
 ## Rules
-- **`src/engine/` and `src/game/` are pure TypeScript.** No DOM, no `window`. They run in Node.
+- **`src/engine/`, `src/game/` and `src/sync/` are pure TypeScript.** No DOM, no `window`, and
+  `src/sync/` never imports from `src/ui/`. They run in Node.
 - **Test-first for engine code.** Every technique gets a fixture test with the exact expected step.
   Every bug fix gets a regression test.
 - **Solvers never guess.** Hints only come from the logical solver. The exact solver is for
