@@ -854,7 +854,11 @@ test("backup: save a file, then restore it from the game menu over newer progres
   const file = testInfo.outputPath("backup.json");
   await download.saveAs(file);
   const backup = JSON.parse(readFileSync(file, "utf8"));
-  expect(backup).toMatchObject({ app: "nonet", version: 1, data: { progress: { total: 3 } } });
+  // The seed was the old shape: on load its count became this device's, and the backup is the new one.
+  expect(backup).toMatchObject({ app: "nonet", version: 2 });
+  expect(backup.data.progress.total).toBeUndefined();
+  expect(Object.values(backup.data.progress.counters as Record<string, { total: number }>).map((c) => c.total)).toEqual([3]);
+  expect(backup.data.device).toBeUndefined();
   expect(backup.data["game.classic"]).toBeTruthy();
 
   // Start over, then restore mid-game: the open game must not save over the backup on the way out.

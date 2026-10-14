@@ -1,5 +1,5 @@
 /** Player settings with persistence and change notification. */
-import { load, save } from "./store";
+import { load, save, saveQuiet } from "./store";
 
 export type EffectsLevel = "low" | "normal" | "epic";
 
@@ -39,6 +39,14 @@ export const DEFAULT_SETTINGS: Settings = {
   autoCross: true,
 };
 
+/**
+ * The settings that follow the player between devices: how the game plays. Sound, haptics,
+ * volume and the effects level are about the device and stay with it.
+ */
+export const SYNCED_KEYS = ["highlightSame", "autoClearNotes", "autoNotes", "checkMistakes", "showTimer", "cageTint", "showCombos", "autoCross"] as const;
+export type SyncedKey = (typeof SYNCED_KEYS)[number];
+export type SyncedSettings = Pick<Settings, SyncedKey>;
+
 type Listener = (s: Settings, changed: (keyof Settings)[]) => void;
 const listeners = new Set<Listener>();
 
@@ -50,12 +58,38 @@ export function settings(): Settings {
   return current;
 }
 
+const isSynced = (k: keyof Settings): k is SyncedKey => (SYNCED_KEYS as readonly string[]).includes(k);
+
 export function updateSettings(patch: Partial<Settings>): void {
   const changed = (Object.keys(patch) as (keyof Settings)[]).filter((k) => patch[k] !== current[k]);
   if (!changed.length) return;
   current = { ...current, ...patch };
   save("settings", current);
+  // The time a synced setting last changed here decides which device's choice wins a merge.
+  if (changed.some(isSynced)) save("settingsAt", Date.now());
   for (const fn of listeners) fn(current, changed);
+}
+
+/** The synced settings as they are now. */
+export function syncedSettings(): SyncedSettings {
+  return Object.fromEntries(SYNCED_KEYS.map((k) => [k, current[k]])) as SyncedSettings;
+}
+
+/**
+ * Settings the merge brought in from another device: applied and saved, with that device's
+ * time, but not stamped as a change made here (or two devices would hand them back and forth).
+ */
+export function applySyncedSettings(values: Partial<SyncedSettings>, at: number): void {
+  const patch: Partial<Settings> = {};
+  for (const k of SYNCED_KEYS) {
+    const v = values[k];
+    if (typeof v === "boolean" && v !== current[k]) patch[k] = v;
+  }
+  const changed = Object.keys(patch) as (keyof Settings)[];
+  current = { ...current, ...patch };
+  saveQuiet("settings", current);
+  saveQuiet("settingsAt", at);
+  if (changed.length) for (const fn of listeners) fn(current, changed);
 }
 
 export function onSettings(fn: Listener): () => void {
