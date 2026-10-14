@@ -29,7 +29,7 @@ describe("progress and saves in the store", () => {
     expect(p.hinted).toEqual({ single: 2 });
     const device = store.deviceId();
     expect(device).toMatch(/^[0-9a-f]{16}$/);
-    expect(stored("progress")).toEqual({ solved: { "classic-easy": ["a"] }, best: {}, streak: { last: "", days: 0 }, counters: { [device]: { total: 3, hinted: { single: 2 } } } });
+    expect(stored("progress")).toEqual({ solved: { "classic-easy": ["a"] }, best: {}, streak: { last: "", days: 0 }, counters: { [device]: { total: 3, hinted: { single: 2 } } }, levels: {} });
     expect(stored("device")).toBe(device);
   });
 
@@ -44,6 +44,21 @@ describe("progress and saves in the store", () => {
     expect(p.total).toBe(6);
     expect(p.hinted).toEqual({ pair: 2, single: 1 });
     expect(p.solved).toEqual({ "classic-easy": ["p1"] });
+  });
+
+  it("counts levels per mode and difficulty for this device, replays too, on top of other devices' and v1 solves", () => {
+    const device = store.deviceId();
+    memory.set(
+      "cagecoach.progress",
+      JSON.stringify({ solved: { "classic-easy": ["classic-easy-1", "classic-easy-2"] }, best: {}, streak: { last: "", days: 0 }, counters: {}, levels: { other: { "classic-easy": 4 } } }),
+    );
+    store.recordSolve("classic", "easy", "c21u8fyyj3eh", 1000);
+    store.recordSolve("classic", "easy", "c21u8fyyj3eh", 900); // a replay counts
+    store.recordSolve("queens", "hard", "q0txnkgn4q44", 1000);
+    const p = store.loadProgress();
+    expect(p.levels).toEqual({ other: { "classic-easy": 4 }, [device]: { "classic-easy": 2, "queens-hard": 1 } });
+    expect(p.beaten).toEqual({ "classic-easy": 8, "queens-hard": 1 });
+    expect(p.solved["classic-easy"]).toEqual(["classic-easy-1", "classic-easy-2", "c21u8fyyj3eh"]);
   });
 
   it("leaves the device id out of backups, so a restore counts as a new device and the totals still add up", async () => {

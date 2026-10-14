@@ -12,6 +12,7 @@ const progress = fc.record({
   best: fc.dictionary(modeKey, fc.integer({ min: 1000, max: 9999 })),
   streak: fc.record({ last: fc.constantFrom("", "2026-10-01", "2026-10-02"), days: fc.nat(5) }),
   counters: fc.dictionary(device, fc.record({ total: fc.nat(9), hinted: fc.dictionary(tech, fc.nat(5)) })),
+  levels: fc.dictionary(device, fc.dictionary(modeKey, fc.nat(9))),
 });
 // A fixed pool, so two copies of the same result (same id and time) never disagree on the rest.
 const POOL = Array.from({ length: 12 }, (_, i) => ({ id: `p${i % 4}`, at: Math.floor(i / 4) * 10 + (i % 3), mode: "classic", time: 1000 + i * 7 }));
@@ -58,13 +59,14 @@ describe("merge is a join", () => {
 });
 
 describe("merge rules", () => {
-  it("progress: solved lists union, best times take the minimum, counters take each device's maximum", () => {
+  it("progress: solved lists union, best times take the minimum, counters and level counts take each device's maximum", () => {
     const a: Data = {
       progress: {
         solved: { "classic-easy": ["p1", "p2"] },
         best: { "classic-easy": 5000, "killer-hard": 9000 },
         streak: { last: "2026-10-01", days: 2 },
         counters: { phone: { total: 3, hinted: { single: 2 } } },
+        levels: { phone: { "classic-easy": 3 } },
       },
     };
     const b: Data = {
@@ -73,6 +75,7 @@ describe("merge rules", () => {
         best: { "classic-easy": 4000 },
         streak: { last: "2026-10-02", days: 1 },
         counters: { phone: { total: 2, hinted: { single: 1, pair: 1 } }, laptop: { total: 4, hinted: {} } },
+        levels: { phone: { "classic-easy": 2, "killer-hard": 1 }, laptop: { "classic-easy": 4 } },
       },
     };
     expect(merge(a, b).progress).toEqual({
@@ -80,7 +83,19 @@ describe("merge rules", () => {
       best: { "classic-easy": 4000, "killer-hard": 9000 },
       streak: { last: "2026-10-02", days: 1 },
       counters: { phone: { total: 3, hinted: { single: 2, pair: 1 } }, laptop: { total: 4, hinted: {} } },
+      levels: { phone: { "classic-easy": 3, "killer-hard": 1 }, laptop: { "classic-easy": 4 } },
     });
+  });
+
+  it("progress: level counts a phone on 0.3 pushed stale, or dropped, come back with the next updated device's merge", () => {
+    // 0.3 keeps a progress field it doesn't know when only one side has it, but picks one side
+    // whole when both do, and saves its own progress without it. Each device's count only grows,
+    // so taking the larger per device puts back whatever an updated device has seen.
+    const here: Data = { progress: { levels: { phone: { "classic-easy": 5 }, tablet: { "killer-hard": 2 } } } };
+    const stale: Data = { progress: { levels: { phone: { "classic-easy": 3 } } } };
+    const dropped: Data = { progress: { solved: { "classic-easy": ["p1"] } } };
+    expect(merge(here, stale).progress).toEqual(here.progress);
+    expect(merge(here, dropped).progress).toEqual({ ...(here.progress as object), solved: { "classic-easy": ["p1"] } });
   });
 
   it("progress: the same day's streak keeps the longer run; a field it doesn't know passes through", () => {

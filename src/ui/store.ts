@@ -7,7 +7,7 @@ import type { Difficulty } from "../engine/types";
 import type { Mode } from "../game/packs";
 import { backupSolved, BACKUP_VERSION, makeEnvelope, parseBackup, type Backup } from "../sync/envelope";
 import { RESULTS_MAX } from "../sync/merge";
-import { EMPTY_COUNTERS, normalizeProgress, sumCounters, type ProgressRecord } from "../sync/progress";
+import { EMPTY_COUNTERS, levelsBeaten, normalizeProgress, sumCounters, type ProgressRecord } from "../sync/progress";
 
 export { backupSolved, BACKUP_VERSION, parseBackup, type Backup };
 
@@ -91,9 +91,11 @@ export interface Progress extends ProgressRecord {
   total: number;
   /** Hint steps applied per technique id, every device added up (for the Learn screen). */
   hinted: Record<string, number>;
+  /** Levels beaten per "mode-difficulty", every device added up: the next level's number less one. */
+  beaten: Record<string, number>;
 }
 
-const withSums = (p: ProgressRecord): Progress => ({ ...p, ...sumCounters(p.counters) });
+const withSums = (p: ProgressRecord): Progress => ({ ...p, ...sumCounters(p.counters), beaten: levelsBeaten(p) });
 
 export function loadProgress(): Progress {
   const { progress, legacy } = normalizeProgress(load<unknown>("progress", null), deviceId());
@@ -103,8 +105,8 @@ export function loadProgress(): Progress {
 }
 
 export function saveProgress(p: ProgressRecord): void {
-  const { solved, best, streak, counters } = p;
-  save("progress", { solved, best, streak, counters });
+  const { solved, best, streak, counters, levels } = p;
+  save("progress", { solved, best, streak, counters, levels });
 }
 
 export function todayKey(d = new Date()): string {
@@ -120,6 +122,8 @@ export function recordSolve(mode: string, difficulty: string, id: string, ms: nu
   if (!p.best[key] || ms < p.best[key]!) p.best[key] = ms;
   const mine = p.counters[deviceId()] ?? EMPTY_COUNTERS;
   p.counters[deviceId()] = { ...mine, total: mine.total + 1 };
+  const levels = p.levels[deviceId()] ?? {};
+  p.levels[deviceId()] = { ...levels, [key]: (levels[key] ?? 0) + 1 };
   const today = todayKey();
   if (p.streak.last !== today) {
     const y = new Date();

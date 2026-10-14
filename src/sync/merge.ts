@@ -76,13 +76,16 @@ function mergeProgress(a: unknown, b: unknown): unknown {
         out[k] = unionLists(va, vb);
         break;
       case "best":
-        out[k] = minMap(va, vb);
+        out[k] = numberJoin(va, vb, Math.min);
         break;
       case "streak":
         out[k] = laterStreak(va, vb);
         break;
       case "counters":
         out[k] = maxCounters(va, vb);
+        break;
+      case "levels":
+        out[k] = maxLevels(va, vb);
         break;
       default:
         out[k] = smaller(va, vb);
@@ -105,12 +108,13 @@ function unionLists(a: unknown, b: unknown): unknown {
   return out;
 }
 
-function minMap(a: unknown, b: unknown): unknown {
+/** Two maps of numbers, key by key: `pick` decides a key both have. */
+function numberJoin(a: unknown, b: unknown, pick: (x: number, y: number) => number): unknown {
   if (!isRecord(a) || !isRecord(b)) return smaller(a, b);
   const out: Record<string, unknown> = { ...a };
   for (const [k, v] of Object.entries(b)) {
     const cur = out[k];
-    out[k] = cur === undefined ? v : typeof cur === "number" && typeof v === "number" ? Math.min(cur, v) : smaller(cur, v);
+    out[k] = cur === undefined ? v : typeof cur === "number" && typeof v === "number" ? pick(cur, v) : smaller(cur, v);
   }
   return out;
 }
@@ -146,6 +150,17 @@ function maxCounters(a: unknown, b: unknown): unknown {
     const hinted: Record<string, number> = { ...(x.hinted ?? {}) };
     for (const [t, n] of Object.entries(y.hinted ?? {})) hinted[t] = Math.max(hinted[t] ?? 0, n);
     out[device] = { total: Math.max(x.total ?? 0, y.total ?? 0), hinted };
+  }
+  return out;
+}
+
+/** Each device's level counts: the larger per mode and difficulty, since a device's counts only grow. */
+function maxLevels(a: unknown, b: unknown): unknown {
+  if (!isRecord(a) || !isRecord(b)) return smaller(a, b);
+  const out: Record<string, unknown> = { ...a };
+  for (const [device, v] of Object.entries(b)) {
+    const cur = out[device];
+    out[device] = cur === undefined ? v : numberJoin(cur, v, Math.max);
   }
   return out;
 }
