@@ -95,3 +95,36 @@ export function centerOf(el: Element): { x: number; y: number } {
   const r = el.getBoundingClientRect();
   return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
 }
+
+/** How long a press must last to count as a hold, on the pad and the tools. */
+export const LONG_PRESS_MS = 380;
+
+/**
+ * Tap or hold on a button. A press that lasts LONG_PRESS_MS calls `onHold` (the button carries
+ * `long` while it's down); a shorter one calls `onTap` on release. A keyboard press (a click with
+ * no pointer) taps. The context menu stays closed, so a hold on a phone doesn't raise it.
+ */
+export function holdable(el: HTMLElement, onTap: (e: PointerEvent | MouseEvent) => void, onHold: () => void): void {
+  let timer = 0;
+  let long = false;
+  el.addEventListener("pointerdown", (e) => {
+    long = false;
+    el.setPointerCapture?.(e.pointerId);
+    timer = window.setTimeout(() => {
+      long = true;
+      el.classList.add("long");
+      onHold();
+    }, LONG_PRESS_MS);
+  });
+  const end = () => {
+    clearTimeout(timer);
+    el.classList.remove("long");
+  };
+  el.addEventListener("pointerup", (e) => {
+    end();
+    if (!long) onTap(e);
+  });
+  el.addEventListener("pointercancel", end);
+  el.addEventListener("click", (e) => e.detail === 0 && onTap(e));
+  el.addEventListener("contextmenu", (e) => e.preventDefault());
+}

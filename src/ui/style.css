@@ -1071,6 +1071,20 @@ button:disabled {
   display: none;
 }
 
+/* Hidden notes (hold the Notes tool): every note steps out of view until shown again. A hint's
+   picture still draws, since hinting shows and hides notes by its own rules. */
+.play.notes-hidden .board:not(.hinting) .notes {
+  visibility: hidden;
+}
+
+.tool.hidden-notes .icon {
+  opacity: 0.4;
+}
+
+.tool.hidden-notes span {
+  color: var(--a2);
+}
+
 /* killer */
 .sums {
   position: absolute;

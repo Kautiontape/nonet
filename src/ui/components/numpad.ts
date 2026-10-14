@@ -2,7 +2,7 @@
  * Digit pad. Tap = place (or pencil in notes mode, or with Shift held); hold = light that digit up
  * across the grid, placing nothing. Each key shows how many of that digit are still missing; finished digits dim.
  */
-import { h, shiftOnly } from "../dom";
+import { h, holdable, shiftOnly } from "../dom";
 import { DIGIT_COLORS } from "../palette";
 
 export interface NumpadHandlers {
@@ -11,8 +11,6 @@ export interface NumpadHandlers {
   /** The key was held: show where that digit is, don't place it. */
   onHold(d: number): void;
 }
-
-const LONG_PRESS_MS = 380;
 
 export class Numpad {
   readonly el: HTMLElement;
@@ -31,29 +29,7 @@ export class Numpad {
         h("span", null, String(d)),
         count,
       );
-      let timer = 0;
-      let long = false;
-      key.addEventListener("pointerdown", (e) => {
-        long = false;
-        key.setPointerCapture?.(e.pointerId);
-        timer = window.setTimeout(() => {
-          long = true;
-          key.classList.add("long");
-          handlers.onHold(d);
-        }, LONG_PRESS_MS);
-      });
-      const end = () => {
-        clearTimeout(timer);
-        key.classList.remove("long");
-      };
-      key.addEventListener("pointerup", (e) => {
-        end();
-        if (!long) handlers.onDigit(d, shiftOnly(e));
-      });
-      key.addEventListener("pointercancel", end);
-      // A keyboard press on a focused key arrives as a click with no pointer (detail 0).
-      key.addEventListener("click", (e) => e.detail === 0 && handlers.onDigit(d, shiftOnly(e)));
-      key.addEventListener("contextmenu", (e) => e.preventDefault());
+      holdable(key, (e) => handlers.onDigit(d, shiftOnly(e)), () => handlers.onHold(d));
       this.keys.push(key);
       this.counts.push(count);
       this.el.append(key);

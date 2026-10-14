@@ -33,7 +33,9 @@ Easy / Medium / Hard / Expert per mode, graded by the hardest technique the logi
 ## 2. Core play
 
 - Sudoku: tap cell → tap digit. Notes mode toggle; **hold a digit on the pad = light that digit up
-  across the grid** (places nothing; only a tap places). Erase, undo/redo (unlimited). Drag across cells — or Shift / Ctrl / ⌘-click — to
+  across the grid** (places nothing; only a tap places) and it is the active digit from then on,
+  so a tap on the selected square enters it. **Hold the Notes tool = hide every note** until it
+  is held again or tapped (pencil mode shows notes); not saved. Erase, undo/redo (unlimited). Drag across cells — or Shift / Ctrl / ⌘-click — to
   select several; a digit then pencils into all of them (or comes out of all, if all have it),
   and Erase wipes them all (digits and notes), each as one undo step. A cell acts on release, not
   on press: pressing the selected cell to start a drag never pencils anything, while a plain tap
@@ -71,7 +73,7 @@ Easy / Medium / Hard / Expert per mode, graded by the hardest technique the logi
   **Keep** makes the scratch real as one undo step, checked like any other move.
 - Keyboard (sudoku / killer): 1–9 place, Shift+digit pencils (read from the physical key, so it
   works on any layout); while Shift is held the screen shows notes mode and a numpad tap pencils
-  too; Space or N toggles Notes; arrows move (wrapping), Shift+arrow — like
+  too; Space or N toggles Notes; V hides or shows every note; arrows move (wrapping), Shift+arrow — like
   Shift / Ctrl / ⌘-click — adds cells to the selection; Backspace / Delete / 0 erase the
   selection; H opens the hint or shows the next rung, Enter does what the sheet's main button
   does (next rung, or apply); A toggles Auto notes; L cycles the Σ45 lens (killer); Esc steps back one layer (game menu

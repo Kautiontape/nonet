@@ -50,6 +50,53 @@ test("classic: notes mode pencils candidates; holding a digit lights it up and p
   await expect(cellLocator(page, empty.cell).locator(".notes i.on")).toHaveCount(1);
 });
 
+test("classic: a held digit is the active digit, so a tap on the selected square enters it, not the digit before", async ({ page }) => {
+  await page.goto("/?play=classic-easy");
+  const board = await readBoard(page);
+  const [a, b, c] = board.filter((x) => !x.value);
+  await cellLocator(page, a!.cell).click();
+  await digitKey(page, 7).click(); // 7 is the last digit entered
+  await cellLocator(page, b!.cell).click();
+  await digitKey(page, 9).click({ delay: 600 }); // hold: 9 lights up, nothing is placed
+  await expect(cellLocator(page, b!.cell).locator(".v")).toHaveText("");
+  await expect(digitKey(page, 9)).toHaveClass(/active/);
+  await cellLocator(page, b!.cell).click(); // a tap on the selected square repeats the active digit
+  await expect(cellLocator(page, b!.cell).locator(".v")).toHaveText("9");
+  // The same in pencil mode: the held digit is what the next tap pencils.
+  await page.getByTestId("tool-notes").click();
+  await cellLocator(page, c!.cell).click();
+  await digitKey(page, 3).click();
+  await digitKey(page, 5).click({ delay: 600 });
+  await cellLocator(page, c!.cell).click();
+  await expect(cellLocator(page, c!.cell).locator(".notes i.on")).toHaveText(["3", "5"]);
+});
+
+test("hold the Notes tool to hide every note; hold again, or go to pencil mode, to show them", async ({ page }) => {
+  await page.goto("/?play=classic-easy");
+  const board = await readBoard(page);
+  const empty = board.find((x) => !x.value)!;
+  await cellLocator(page, empty.cell).click();
+  await page.getByTestId("tool-notes").click();
+  await digitKey(page, 3).click();
+  const note = cellLocator(page, empty.cell).locator(".notes i.on");
+  await expect(note).toBeVisible();
+  await page.getByTestId("tool-notes").click({ delay: 600 }); // hold: hidden, and pencil mode ends
+  await expect(page.locator(".play.notes-hidden")).toHaveCount(1);
+  await expect(page.locator(".play.notes-mode")).toHaveCount(0);
+  await expect(note).toBeHidden();
+  await expect(page.getByTestId("tool-notes")).toContainText("Hidden");
+  await expect(page.locator(".stats")).toContainText("Notes hidden");
+  await page.screenshot({ path: "test-results/screens/notes-hidden.png" });
+  await page.getByTestId("tool-notes").click({ delay: 600 }); // hold again: back
+  await expect(page.locator(".play.notes-hidden")).toHaveCount(0);
+  await expect(note).toBeVisible();
+  await page.keyboard.press("v"); // the keyboard way
+  await expect(note).toBeHidden();
+  await page.getByTestId("tool-notes").click(); // a tap goes to pencil mode, which shows notes
+  await expect(page.locator(".play.notes-mode")).toHaveCount(1);
+  await expect(note).toBeVisible();
+});
+
 test("classic: holding Shift turns notes mode on until it's let go", async ({ page }) => {
   await page.goto("/?play=classic-easy");
   const empty = (await readBoard(page)).find((x) => !x.value)!;

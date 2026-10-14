@@ -55,6 +55,20 @@ its stops, since notes sit across the square), drag-selected and notes-mode-sele
 Matching-digit notes keep the accent glow on top. In notes mode the selected square's own notes
 stay white, as before. The hint sheet's rule (notes outside the hint's squares hidden) stays.
 
+## Hide on demand
+
+Shawn still wants a way to take every note off the board at once. For now it is a **hold on the
+Notes tool** (the same 380 ms hold as a pad digit, shared in `holdable()` in `ui/dom.ts`): every
+note goes out of view, the tool reads "Hidden", the stats line says how to get them back, and a
+toast says so the first time. Holding again shows them; so does a tap, since pencil mode is for
+writing notes. V on a keyboard. The state is not saved: a new game shows its notes, so nobody
+opens a game wondering where their notes went. A hint's picture still draws while notes are
+hidden, since hinting shows and hides notes by its own rules.
+
+Later, when the bottom bar needs more than tap-and-hold can carry (hide notes, note style,
+the Σ45 lens, …), a popup from the Notes tool is the place for these; the hold stays as the
+shortcut.
+
 ## Mechanism
 
 Pure CSS in `src/ui/style.css`, no JavaScript: the quiet colours are the defaults on `.notes` and
