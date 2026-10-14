@@ -10,8 +10,8 @@ vary widely (Killer Expert boards took between 0.1 and 64 s), so costs are avera
 boards. Two runs of the same Killer Expert settings on different seeds came out at 9.8 and 9.9 s a
 board. Other jobs share this machine, so repeating a run changed its wall-clock time by up to about
 45%; attempt and check counts repeat exactly. Costs under 20 ms come from 40-board runs timed to
-0.1 s and are rough. The experiment scripts are in `research/experiments/` in this worktree and stay out of the
-repo; Phase 3 moves the chosen methods into `src/engine/` and `scripts/`.
+0.1 s and are rough. The experiment scripts are in `research/experiments/` in this worktree and stay
+out of the repo; Phase 3 moves the chosen methods into `src/engine/` and `scripts/`.
 
 ## Terms
 
@@ -347,8 +347,8 @@ on 11 of 16 boards at 3+). For Killer Expert the same pool also supplies the sub
 
 ## Prior art
 
-Sources were read directly where possible (source code, PDFs). Fuller notes with quotes are in
-`research/prior-art.md`, next to the experiment scripts.
+Sources were read directly where possible (source code, PDFs). Fuller notes with quotes, and the
+claims that couldn't be verified, are in `generator-prior-art.md`.
 
 - **Simon Tatham's Solo** removes a clue only if a difficulty-capped solver still solves the grid,
   then keeps the board if its grade equals the target: the brief's stripping with the solver as the
