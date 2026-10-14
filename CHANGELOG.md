@@ -3,9 +3,9 @@
 What's new in Nonet, newest first. The app shows this file under Settings → Changelog, so it is
 written for players. Read `docs/CHANGELOG-STYLE.md` before adding to it.
 
-## Unreleased
+## 0.2.2 — 2026-10-14
 
-- **Notes that step back.** Notes show at full strength around the selected square and stay quiet elsewhere; your own notes are warm, Auto notes cool, and all stay readable.
+- **Note Readability Improvements.** Notes show at full strength around the selected square and stay quiet elsewhere; your own notes are warm, Auto notes cool, and all stay readable.
 - **Hold Notes to hide every note.** Hold it again, or tap it to pencil, and they come back. On a keyboard, V.
 - Fixed: holding a digit on the pad lit it up, but a tap on the selected square still entered the digit before it.
 
