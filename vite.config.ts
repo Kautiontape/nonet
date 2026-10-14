@@ -51,5 +51,8 @@ export default defineConfig({
     include: ["tests/**/*.test.ts"],
     exclude: ["tests/e2e/**"],
     globals: true,
+    // The solve-on-hints tests take ~1s here but 3–6s on the deploy runner (a shared host running
+    // every file at once), where the 5s default failed deploys.
+    testTimeout: 20_000,
   },
 });
