@@ -30,7 +30,7 @@ describe("profileSudoku: classic", () => {
       advanced: 0,
       walls: 0,
       firstWall: null,
-      scan: { states: 45, min: 1, median: 11, ones: 1 },
+      scan: { states: 44, min: 2, median: 11, ones: 0, early: 12.24 },
       innies: { single: 0, multi: 0 },
       cages: null,
     });
@@ -46,7 +46,7 @@ describe("profileSudoku: classic", () => {
       beyond: 6,
       walls: 2,
       firstWall: 34,
-      scan: { min: 0, median: 5, ones: 3 },
+      scan: { min: 0, median: 5, ones: 2, early: 4.44 },
     });
     expect(p.counts).toMatchObject({ pointing: 5, claiming: 1 });
   });
@@ -67,7 +67,7 @@ describe("profileSudoku: classic", () => {
       advanced: 2,
       walls: 5,
       firstWall: 48,
-      scan: { median: 3, ones: 7 },
+      scan: { median: 3, ones: 6, early: 1.12 },
       uniqueness: 0,
     });
   });
@@ -97,7 +97,7 @@ describe("profileSudoku: classic", () => {
     const givens: Record<number, number> = {};
     for (let c = 1; c < 81; c++) givens[c] = Number(solution[c]);
     const p = profileSudoku({ id: "x", kind: "classic", cages: [], givens });
-    expect(p).toMatchObject({ givens: 80, steps: 1, counts: { "full-house": 1 }, walls: 0, scan: { states: 1, min: 1 } });
+    expect(p).toMatchObject({ givens: 80, steps: 1, counts: { "full-house": 1 }, walls: 0, scan: { states: 0 } });
   });
 });
 
@@ -118,8 +118,9 @@ describe("profileSudoku: killer", () => {
     });
   });
 
-  it("an Expert board", () => {
-    const p = profileSudoku(sudoku("killer-expert"));
+  it("an Expert board, without the scan", () => {
+    const p = profileSudoku(sudoku("killer-expert"), { scan: false });
+    expect(p.scan.states).toBe(0);
     expect(p).toMatchObject({
       tiers: [0, 98, 87, 24, 0, 2],
       advanced: 2,

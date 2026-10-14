@@ -92,6 +92,7 @@ const COMMON: Row<Profile>[] = [
   { label: "tier-3 steps", cell: (ps) => range(ps.map((p) => p.tiers[3]!)) },
   { label: "tier-4+ steps", cell: (ps) => range(ps.map((p) => p.advanced)) },
   { label: "… boards with ≥ 3", cell: (ps) => share(ps.filter((p) => p.advanced >= 3).length, ps.length) },
+  { label: "scan: early options (mean, first 25)", cell: (ps) => range(ps.map((p) => p.scan.early)) },
   { label: "scan: median options", cell: (ps) => range(ps.map((p) => p.scan.median)) },
   { label: "scan: states with one option", cell: (ps) => range(ps.map((p) => p.scan.ones)) },
   { label: "hardest step (boards)", cell: (ps) => mix(ps) },

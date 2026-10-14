@@ -15,7 +15,12 @@
  *   (sudoku) or cells that could still hold a queen (queens); null when there's no wall.
  * - `scan`: what scanning offers at each state before a step (`scanSudoku`, `scanQueens`):
  *   placements in sudoku (killer scans the cage-sum candidates auto-notes would show); in queens,
- *   rows, columns and regions that say something on their own. `median` is the upper median.
+ *   rows, columns and regions that say something on their own. The state before the last step
+ *   (one square or queen left) is left out, so `min` and `ones` describe real bottlenecks.
+ *   `early` is the mean over the first 25 states: Pelánek's "dependency" metric, the best
+ *   predictor of human solving time among singles-only puzzles (late states offer plenty on any
+ *   board). `median` is the upper median. `scan: false` skips it where walls don't need it (killer,
+ *   queens): a killer scan costs five to six times the solve.
  */
 import { basicCandidates, comboCandidates } from "./candidates";
 import { cageCombos } from "./combos";
@@ -34,6 +39,9 @@ import { applyStep, createState, isBroken, isSolved } from "./state";
 import { TECHNIQUES } from "./techniques";
 import { puzzleKind, type Cage, type CellId, type Grid, type Puzzle, type PuzzleKind, type Step } from "./types";
 
+/** States that `scan.early` averages over. */
+export const EARLY_STATES = 25;
+
 /** The Easy band's ceiling per mode: steps above it count as `beyond`, and make walls. */
 export const FLOOR = { classic: 1, killer: 2, queens: 2 } as const;
 
@@ -43,6 +51,8 @@ export interface ScanStats {
   min: number;
   median: number;
   mean: number;
+  /** Mean over the first `EARLY_STATES` states. */
+  early: number;
   /** States where scanning offered exactly one thing. */
   ones: number;
 }
@@ -105,6 +115,8 @@ export interface QueensProfile extends ProfileBase {
 }
 
 export interface ProfileOptions extends LogicalOptions {
+  /** Default true; false skips the scan stats in killer (classic always scans: walls need it). */
+  scan?: boolean;
   /** Called after each step; returning true ends the solve there (`stopped`). */
   stop?: (profile: SudokuProfile, step: Step) => boolean;
 }
@@ -112,6 +124,8 @@ export interface ProfileOptions extends LogicalOptions {
 export interface QueensProfileOptions {
   /** Skip techniques above this tier (default 5). */
   maxTier?: number;
+  /** Default true; false skips the scan stats. */
+  scan?: boolean;
   stop?: (profile: QueensProfile, step: QStep) => boolean;
 }
 
@@ -132,7 +146,7 @@ function emptyBase(): ProfileBase {
     advanced: 0,
     walls: 0,
     firstWall: null,
-    scan: { states: 0, min: 0, median: 0, mean: 0, ones: 0 },
+    scan: { states: 0, min: 0, median: 0, mean: 0, early: 0, ones: 0 },
   };
 }
 
@@ -154,14 +168,18 @@ function count(p: ProfileBase, step: { technique: string; tier: number; rating: 
   if (step.tier >= 4) p.advanced++;
 }
 
-function summarize(options: readonly number[]): ScanStats {
-  if (!options.length) return { states: 0, min: 0, median: 0, mean: 0, ones: 0 };
+/** `options` has one entry per state before a step; a finished solve drops the last. */
+function summarize(options: number[], solved: boolean): ScanStats {
+  if (solved) options.pop();
+  if (!options.length) return { states: 0, min: 0, median: 0, mean: 0, early: 0, ones: 0 };
+  const mean = (xs: readonly number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
   const sorted = [...options].sort((a, b) => a - b);
   return {
     states: sorted.length,
     min: sorted[0]!,
     median: sorted[sorted.length >> 1]!,
-    mean: sorted.reduce((a, b) => a + b, 0) / sorted.length,
+    mean: mean(sorted),
+    early: mean(options.slice(0, EARLY_STATES)),
     ones: sorted.filter((x) => x === 1).length,
   };
 }
@@ -250,9 +268,10 @@ export function profileSudoku(puzzle: Puzzle, opts: ProfileOptions = {}): Sudoku
     inWall = true;
   };
   const maxSteps = opts.maxSteps ?? 1000;
+  const scanning = mode === "classic" || opts.scan !== false;
   while (!isSolved(s) && p.steps < maxSteps) {
-    const offered = scanSudoku(puzzle, s.grid);
-    options.push(offered);
+    const offered = scanning ? scanSudoku(puzzle, s.grid) : -1;
+    if (scanning) options.push(offered);
     if (mode === "classic") {
       if (offered === 0) wall();
       else inWall = false;
@@ -281,7 +300,7 @@ export function profileSudoku(puzzle: Puzzle, opts: ProfileOptions = {}): Sudoku
     }
   }
   p.solved = isSolved(s);
-  p.scan = summarize(options);
+  p.scan = summarize(options, p.solved);
   return p;
 }
 
@@ -339,7 +358,7 @@ export function profileQueens(puzzle: QueensPuzzle, opts: QueensProfileOptions =
   };
   const limit = 2 * s.board.size;
   while (!queensIsSolved(s) && !findEmptyUnit(s) && p.steps <= limit) {
-    options.push(scanQueens(s));
+    if (opts.scan !== false) options.push(scanQueens(s));
     const step = queensNextStep(s, opts.maxTier ?? 5);
     if (!step) {
       wall();
@@ -355,6 +374,6 @@ export function profileQueens(puzzle: QueensPuzzle, opts: QueensProfileOptions =
     }
   }
   p.solved = queensIsSolved(s);
-  p.scan = summarize(options);
+  p.scan = summarize(options, p.solved);
   return p;
 }
