@@ -1,4 +1,9 @@
+import { readFileSync } from "node:fs";
+import { nextStep, solveLogically } from "../../src/engine/logical";
+import { decodeSudoku, type SudokuPackEntry } from "../../src/engine/pack";
 import { regionEquation } from "../../src/engine/region";
+import { applyStep, createState } from "../../src/engine/state";
+import type { Step } from "../../src/engine/types";
 import { claiming, pointing } from "../../src/engine/techniques/intersections";
 import { inniesSingle } from "../../src/engine/techniques/innies";
 import { cageCandidateCombos, cageClaim, cageLastCell, cageLocked, cageSumCombos } from "../../src/engine/techniques/killer";
@@ -125,6 +130,29 @@ describe("killer techniques", () => {
     // r8c1 can't be 9; combos with 9 are 1+5+9, 2+4+9 → no 3,6,7,8 anywhere in the cage.
     expect(elims(step)).toContain("r8c1-9");
     expect(elims(step)).toContain("r8c1-7");
+  });
+
+  it("combination checks follow the cage's candidates (they're reused between steps)", () => {
+    const p = withDigits({}, [cage(0, 10, ["r1c1", "r1c2"])]);
+    expect(elims(cageCandidateCombos.find(stateWith(p, { r1c1: "139", r1c2: "79" })))).toEqual(["r1c1-9"]);
+    expect(elims(cageCandidateCombos.find(stateWith(p, { r1c1: "1389", r1c2: "79" })))).toEqual(["r1c1-8", "r1c1-9"]);
+    expect(cageCandidateCombos.find(stateWith(p, { r1c1: "13", r1c2: "79" }))).toBeNull();
+  });
+
+  it("reusing combination checks doesn't change a solve, and steps don't share them", () => {
+    const pack = JSON.parse(readFileSync("public/packs/killer-hard.json", "utf8")) as { puzzles: SudokuPackEntry[] };
+    const p = decodeSudoku(pack.puzzles[0]!);
+    const clean = JSON.stringify(solveLogically(decodeSudoku(pack.puzzles[0]!)).steps);
+    // Same puzzle object, step by step, scribbling over each step's explain data before the next
+    // step is found (a cage's check is reused while its cells don't change).
+    const s = createState(p);
+    const seen: Step[] = [];
+    for (let step = nextStep(s); step; step = nextStep(s)) {
+      seen.push(JSON.parse(JSON.stringify(step)) as Step);
+      applyStep(s, step);
+      for (const v of Object.values(step.explain)) if (Array.isArray(v)) v.length = 0;
+    }
+    expect(JSON.stringify(seen)).toBe(clean);
   });
 
   it("innies: a row whose cages leave one cell poking out", () => {

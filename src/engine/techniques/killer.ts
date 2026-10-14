@@ -83,6 +83,24 @@ export function checkCombos(s: SolverState, v: CageView, require = 0): ComboChec
   return { valid, invalid, support };
 }
 
+/**
+ * The last view and combination check per cage, keyed by its cells' digits and candidates. Most
+ * cages don't change between steps, and the check (a matching per combination) is most of a
+ * killer solve's time. Callers must not mutate what this returns.
+ */
+const lastCheck = new WeakMap<Cage, { key: string; view: CageView; check: ComboCheck }>();
+
+function checkedView(s: SolverState, cage: Cage): { view: CageView; check: ComboCheck } {
+  let key = "";
+  for (const c of cage.cells) key += (s.grid[c] ? -s.grid[c]! : s.cand[c]!) + ",";
+  const hit = lastCheck.get(cage);
+  if (hit && hit.key === key) return hit;
+  const view = cageView(s, cage);
+  const entry = { key, view, check: checkCombos(s, view) };
+  lastCheck.set(cage, entry);
+  return entry;
+}
+
 const cageCells = (v: CageView) => v.cage.cells;
 
 export const cageLastCell: Technique = {
@@ -126,12 +144,13 @@ function comboStep(s: SolverState, v: CageView, basis: "sum" | "candidates", val
       cage: v.cage.id,
       sum: v.cage.sum,
       size: v.cage.cells.length,
-      cells: v.empty,
+      // copies: the view and check may be shared with the next call (checkedView)
+      cells: [...v.empty],
       rem: v.rem,
-      placed: v.placed,
-      combos: v.combos,
-      valid,
-      invalid,
+      placed: [...v.placed],
+      combos: [...v.combos],
+      valid: [...valid],
+      invalid: [...invalid],
       allowed,
     },
     sources: v.placed.map((p) => p.cell),
@@ -173,10 +192,8 @@ export const cageCandidateCombos: Technique = {
   find(s) {
     let best: { combos: number; elims: number; step: Step } | null = null;
     for (const cage of s.cages) {
-      const v = cageView(s, cage);
-      if (v.empty.length < 2) continue;
-      const check = checkCombos(s, v);
-      if (!check.valid.length) continue;
+      const { view: v, check } = checkedView(s, cage);
+      if (v.empty.length < 2 || !check.valid.length) continue;
       const elims: Elimination[] = [];
       v.empty.forEach((c, i) => {
         for (const d of digitsOf(s.cand[c]! & ~check.support[i]!)) elims.push({ cell: c, digit: d });
@@ -196,10 +213,8 @@ export const cageLocked: Technique = {
   killerOnly: true,
   find(s) {
     for (const cage of s.cages) {
-      const v = cageView(s, cage);
-      if (v.empty.length < 2) continue;
-      const check = checkCombos(s, v);
-      if (!check.valid.length) continue;
+      const { view: v, check } = checkedView(s, cage);
+      if (v.empty.length < 2 || !check.valid.length) continue;
       const must = check.valid.reduce((a, m) => a & m, ALL_DIGITS);
       for (const d of digitsOf(must)) {
         const cells = v.empty.filter((c) => s.cand[c]! & bit(d));
@@ -225,7 +240,7 @@ export const cageLocked: Technique = {
               digit: d,
               house: house(h),
               cells,
-              valid: check.valid,
+              valid: [...check.valid],
               inside: cells.length === v.empty.length,
             },
             marks: [...marksFor(s, cells, bit(d), "key"), ...elimMarks(elims)],
