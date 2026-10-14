@@ -1,7 +1,8 @@
+import { readFileSync } from "node:fs";
 import { subTargetsOf } from "../../src/engine/bands";
 import { contentId, queensSymmetryKey } from "../../src/engine/content-id";
 import { exactSolve } from "../../src/engine/exact";
-import { makeBoard } from "../../src/engine/gen";
+import { GENERATOR_VERSION, makeBoard } from "../../src/engine/gen";
 import { makeClassic } from "../../src/engine/gen/classic";
 import { makeKiller } from "../../src/engine/gen/killer";
 import { makeQueens } from "../../src/engine/gen/queens";
@@ -132,5 +133,27 @@ describe("makeBoard and v2 pack entries", () => {
     expect(Object.keys(k.p).sort()).toEqual(["a", "b", "f", "fw", "h", "i", "im", "w"]);
     const q = encodeV2("queens", "easy", makeBoard("queens", "easy", 4)!, "standard", 2);
     expect(Object.keys(q.p).sort()).toEqual(["a", "b", "c", "fw", "h", "w"]);
+  });
+});
+
+describe("pinned generator output", () => {
+  // Pack entries record their seed and generator version so any board can be made again. If one of
+  // these changes, the generators now make different boards for the same seed: bump
+  // GENERATOR_VERSION (gen/common.ts) and rebuild the v2 packs.
+  const PINNED = [
+    ["classic", "easy", "c21u8fyyj3eh"],
+    ["classic", "hard", "c0kk0q82bp6t"],
+    ["killer", "easy", "k1khglo6rqhh"],
+    ["killer", "medium", "k1j9xowsv8d8"],
+    ["queens", "medium", "q1vh2o4navf8"],
+    ["queens", "expert", "q0txnkgn4q44"],
+  ] as const;
+
+  it("seed 1 makes the same boards as when the v2 packs were built", () => {
+    for (const [mode, band, id] of PINNED) {
+      expect(makeBoard(mode, band, 1)!.board.id).toBe(id);
+      const pack = JSON.parse(readFileSync(`public/packs/v2/${mode}-${band}.json`, "utf8")) as { puzzles: { seed: number; id: string; gv: number }[] };
+      expect(pack.puzzles.find((e) => e.seed === 1)).toMatchObject({ id, gv: GENERATOR_VERSION });
+    }
   });
 });
