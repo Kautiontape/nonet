@@ -3,7 +3,7 @@
 What's new in Nonet, newest first. The app shows this file under Settings → Changelog, so it is
 written for players. Read `docs/CHANGELOG-STYLE.md` before adding to it.
 
-## Unreleased
+## 0.2.0 — 2026-10-13
 
 - **Back up your progress.** Settings → Data saves your scores, settings and games to a file you can restore on another device.
 - **Hints go one step at a time.** When a digit needs groundwork first, the hint teaches each step in turn ("Step 1 of 3").
