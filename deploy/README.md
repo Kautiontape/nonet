@@ -40,8 +40,10 @@ host is **ktn** (Ubuntu, nginx, a self-hosted GitHub Actions runner), fronted by
    ```
    sudo /opt/services/nonet/deploy/sync-setup.sh
    ```
-   It refuses to run without the DAV module or the TLS snippet, backs up any live site file
+   It refuses to run without the DAV module or the TLS snippet, backs up any live nginx file
    it replaces (`*.bak-<timestamp>` beside it, with a diff), runs `nginx -t`, then reloads.
+   If the config test fails it puts the backed-up files back before exiting, so nginx is never
+   left with a config it can't restart on.
 5. Run `Deploy to production` and `Deploy to beta` by hand once (workflow_dispatch) to build
    both checkouts. After that, tags and pushes to `main` do it.
 

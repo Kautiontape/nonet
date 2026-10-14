@@ -111,7 +111,7 @@ Later-wins trusts device clocks. Fine for one person moving between their own de
 
 ```nginx
 # /etc/nginx/sites-available/nonet.kautiontape.com, inside the server block
-location ~ ^/api/sync/([0-9a-f]{64})\.json$ {
+location ~ "^/api/sync/([0-9a-f]{64})\.json$" {   # quoted: nginx reads a bare {64} as a brace
     alias /var/lib/nonet-sync/$1.json;
     dav_methods PUT DELETE;
     dav_access user:rw group:r;
