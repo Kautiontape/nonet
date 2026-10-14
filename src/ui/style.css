@@ -1010,16 +1010,17 @@ button:disabled {
 }
 
 /* notes — legibility first: every note colour keeps at least 4.5:1 against every board
-   background (board, peer, matching-digit and selected squares, all four themes), and the
-   player's own notes at least 7:1. tests/ui/notes-contrast.test.ts holds these lines to that. */
+   background (board, peer, matching-digit and selected squares, all four themes).
+   tests/ui/notes-contrast.test.ts holds these lines to that. For now every note, the player's
+   and the auto layer's, is this one grey: bright notes looked too much like the big digits. */
 .notes {
   position: absolute;
   inset: 3%;
   display: grid;
   grid-template: repeat(3, 1fr) / repeat(3, 1fr);
   font-size: calc(var(--cell) * 0.29);
-  font-weight: 650;
-  color: #dde3f8;
+  font-weight: 600;
+  color: #9ca8d4;
   pointer-events: none;
 }
 
@@ -1042,12 +1043,10 @@ button:disabled {
   opacity: 1;
 }
 
-/* The auto-note layer: the machine's digits, lighter in weight and cooler than the player's
-   bold ones, but never faint — at 45% opacity a 1 vanished (it's one thin stroke). */
+/* The auto-note layer: the machine's digits. Shown exactly like the player's own for now; never
+   faint — at 45% opacity a 1 vanished (it's one thin stroke). */
 .notes i.auto {
   opacity: 1;
-  color: #b4bfe0;
-  font-weight: 450;
 }
 
 .notes i.match {

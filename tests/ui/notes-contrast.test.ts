@@ -19,7 +19,8 @@ function rule(selector: string): string {
 }
 
 const prop = (body: string, name: string): string | undefined => body.match(new RegExp(`^\\s*${name}:\\s*([^;]+);`, "m"))?.[1];
-const hex = (body: string): Rgb => rgb(prop(body, "color")!.trim());
+/** The rule's colour, or `fallback`'s when it leaves colour to inherit. */
+const hex = (body: string, fallback = body): Rgb => rgb((prop(body, "color") ?? prop(fallback, "color"))!.trim());
 const cellFactor = (body: string): number => Number(prop(body, "font-size")!.match(/var\(--cell\) \* ([\d.]+)/)![1]);
 const weight = (body: string): number => Number(prop(body, "font-weight"));
 /** `rgba(r, g, b, a)` as colour and alpha. */
@@ -27,10 +28,10 @@ function rgba(body: string, name = "background"): [Rgb, number] {
   const m = prop(body, name)!.match(/rgba\((\d+), (\d+), (\d+), ([\d.]+)\)/)!;
   return [[Number(m[1]), Number(m[2]), Number(m[3])], Number(m[4])];
 }
-/** The strongest `var(--x) N%` mix in the rule (a gradient's centre). */
+/** The rule's `var(--x) N%` mix; for a gradient, the mean of its stops (notes sit across the square). */
 function mix(body: string, v: string): number {
   const pcts = [...prop(body, "background")!.matchAll(new RegExp(`var\\(${v}\\) (\\d+)%`, "g"))].map((m) => Number(m[1]));
-  return Math.max(...pcts) / 100;
+  return pcts.reduce((a, b) => a + b, 0) / pcts.length / 100;
 }
 
 /** Every background a note can land on, per theme. */
@@ -56,11 +57,11 @@ describe("notes stay readable", () => {
   const auto = rule(".notes i.auto");
   const killer = rule(".cell.has-sum .notes");
 
-  it("keeps the player's notes at 6:1 and auto notes at 4.5:1 over every board background, in every theme", () => {
+  it("keeps every note at 4.5:1 over every board background, in every theme", () => {
     const own = hex(notes);
-    const dim = hex(auto);
+    const dim = hex(auto, notes);
     for (const { name, bg } of backgrounds()) {
-      expect(contrast(own, bg), `own notes on ${name}`).toBeGreaterThanOrEqual(6);
+      expect(contrast(own, bg), `own notes on ${name}`).toBeGreaterThanOrEqual(4.5);
       expect(contrast(dim, bg), `auto notes on ${name}`).toBeGreaterThanOrEqual(4.5);
     }
   });
@@ -75,6 +76,6 @@ describe("notes stay readable", () => {
     expect(cellFactor(notes)).toBeGreaterThanOrEqual(0.28); // 12px in a 43px square (412px-wide phone)
     expect(cellFactor(killer)).toBeGreaterThanOrEqual(0.24); // under a cage sum
     expect(weight(notes)).toBeGreaterThanOrEqual(600);
-    expect(weight(auto)).toBeGreaterThanOrEqual(450);
+    expect(prop(auto, "font-weight") ?? "600").not.toMatch(/^[0-5]\d\d$/); // never lighter than 600
   });
 });

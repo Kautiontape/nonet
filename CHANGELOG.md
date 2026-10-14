@@ -5,7 +5,7 @@ written for players. Read `docs/CHANGELOG-STYLE.md` before adding to it.
 
 ## Unreleased
 
-- **Notes you can read.** Notes and Auto notes are bigger, bolder and brighter, so a 1 no longer fades into the board.
+- **Notes you can read.** For now, your notes and Auto notes are all one grey, a little bigger and bolder, so a 1 no longer fades into the board.
 
 ## 0.2.0 — 2026-10-13
 

@@ -11,7 +11,7 @@ export interface Settings {
   effects: EffectsLevel;
   highlightSame: boolean;
   autoClearNotes: boolean;
-  /** Show the auto-note layer: lighter digits the rules still allow, under the player's own notes. */
+  /** Show the auto-note layer: digits the rules still allow, under the player's own notes. */
   autoNotes: boolean;
   checkMistakes: boolean;
   showTimer: boolean;
