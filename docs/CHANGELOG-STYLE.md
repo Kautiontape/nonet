@@ -62,4 +62,8 @@ To label a beta before releasing, tag `vX.Y.Z-beta.N` instead and push it with m
 ignores tags with a suffix; the beta's Settings shows "Beta vX.Y.Z-beta.N", and the changelog
 keeps its Unreleased heading until the real release.
 
-Versions: bump the patch for fixes only, the minor for anything new. Stay below 1.0 for now.
+To try a branch on the beta before it reaches main, tag its last commit `vX.Y.Z-beta.N`, push
+the tag, and run the beta deploy on it: `gh workflow run deploy-beta.yml --ref vX.Y.Z-beta.N`.
+Each new commit needs the next beta number and another run. The next push to main replaces it.
+
+Versions: bump the patch for fixes only, the minor for anything new.
