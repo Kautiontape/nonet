@@ -224,7 +224,19 @@ Per mode-difficulty: solved ids, best time; total solves; daily streak; per-tech
 (shown on the Learn screen); a results history (last 300 levels: time, mistakes, hints, perfect,
 record / first clear). **Scores** (home footer and the in-game menu) shows records per mode and
 difficulty and the recent levels, filterable by mode. Levels are numbered by their place in the
-pack. Everything is local (localStorage), no accounts.
+pack. Everything is saved in the browser (localStorage); no accounts.
+
+**Sync across devices** (Settings → Data, above Backup): *Turn on* makes a 16-character sync
+code (four groups, shown large, with *Copy* and *Share link*), and from then on scores, streak,
+hint counts, results, the gameplay settings (not sound, music, volume, haptics or effects) and
+games in progress are kept the same on every device that joins with that code (*Have a code?*,
+typed in any case with or without dashes, or by opening the shared link, which asks before
+joining). Joining merges what is already on the device; it never replaces. Nobody plays on two
+devices at once, but a device may have played offline: solved lists merge as unions, best times
+as minimums, counts per device, and the later change wins for settings and games in progress. A
+status line says "Synced just now", "Offline, will sync later", "Couldn't sync" or "Update Nonet
+to sync". *Turn off* keeps everything on the device and asks whether to delete the cloud copy.
+The code is the only secret: the server stores one file per code hash, no accounts, no email.
 
 **Backup** (Settings → Data): *Save backup* writes everything (progress, results, settings, games in
 progress) to a `nonet-backup-YYYY-MM-DD.json` file: the share sheet on phones that can share
@@ -236,8 +248,7 @@ iPhone a Home Screen app keeps its storage apart from Safari).
 
 ## 7. Non-goals (for now)
 
-Accounts, cloud sync, leaderboards, ads, purchases; variant sudokus beyond classic/killer;
-camera import.
+Accounts, leaderboards, ads, purchases; variant sudokus beyond classic/killer; camera import.
 
 ## 8. Ideas parking lot
 

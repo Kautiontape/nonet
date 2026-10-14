@@ -2127,7 +2127,8 @@ body:has(.play.hint-open) .toasts {
   background: #fff;
 }
 
-.set-row.backup {
+.set-row.backup,
+.set-row.sync {
   flex-direction: column;
   align-items: stretch;
   gap: 12px;
@@ -2161,6 +2162,55 @@ body:has(.play.hint-open) .toasts {
 .set-row .backup-status {
   margin: 0;
   color: var(--ink-dim);
+}
+
+.sync-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sync-prompt {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ink-dim);
+}
+
+/* The code: big and spaced, in a face where 0 and 8 can't be confused; one tap selects all of it. */
+.sync-code {
+  align-self: flex-start;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 20px;
+  letter-spacing: 0.08em;
+  user-select: all;
+  -webkit-user-select: all;
+}
+
+.sync-input {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ink);
+  font: inherit;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 18px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sync-input::placeholder {
+  color: var(--ink-faint);
+  letter-spacing: 0.04em;
+}
+
+.sync-input:focus {
+  outline: 2px solid var(--ink-dim);
+  outline-offset: 2px;
 }
 
 .segmented {

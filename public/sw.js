@@ -30,6 +30,8 @@ self.addEventListener("fetch", (event) => {
   if (req.method !== "GET") return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin || !url.pathname.startsWith(SCOPE)) return;
+  // Sync traffic is never served from a cache, whatever the rules below become.
+  if (url.pathname.includes("/api/")) return;
 
   if (req.mode === "navigate") {
     event.respondWith(

@@ -40,8 +40,16 @@ src/
     sudoku-game.ts        # digits, notes, undo/redo, mistake reasons, completion events, hints
     queens-game.ts        # marks, gestures (tap/double tap/hold/drag), scratch layer, conflicts, events, hints
     packs.ts              # fetch + decode packs, pick next unsolved
+  sync/                   # pure TS, never imports ui/: sync across devices
+    code.ts               # the sync code (Crockford base32), its hash = the cloud file's name
+    envelope.ts           # the { app, version, exported, data } header backups and the cloud copy share
+    progress.ts           # stored progress shape, per-device counters, legacy migration
+    merge.ts              # the join of two copies, key by key (union / min / later-wins / max per device)
+    client.ts             # the sync cycle over injected fetch, store and config
+    equal.ts              # deepEqual, canonical JSON
   ui/
     app.ts                # screen router, global layers, stage themes, saved games
+    sync.ts               # sync wired to the browser: store adapter, triggers, home refresh
     screens/              # home, sudoku-play, queens-play, learn, settings-sheet, changelog, scores
     components/           # sudoku-board (+ cage-paths), queens-board, numpad, hint-sheet, toast,
                           # result-banner (post-level stats strip)
@@ -128,9 +136,21 @@ deploy/                   # the host: nginx site (source of truth), sync rate-li
 - Screens are plain objects `{ el, destroy() }` mounted by `App`. `App.play` destroys the current
   screen *before* building the next so a stale autosave can't overwrite a new game.
 - Everything saved goes through `store.ts` (`localStorage`, keys prefixed `cagecoach.`). A backup
-  is every prefixed key as JSON under an `{ app, version, exported }` header. Restoring replaces
-  them all, then turns `save`/`remove` into no-ops and loads the page again (plain path, never
-  `?play=`), so an open game's autosave or the cached settings can't write over the backup.
+  is every prefixed key but `device` as JSON under an `{ app, version, exported }` header
+  (`sync/envelope.ts`). Restoring replaces them all, then turns `save`/`remove` into no-ops and
+  loads the page again (plain path, never `?play=`), so an open game's autosave or the cached
+  settings can't write over the backup. Progress keeps solve and hint counts per device
+  (`counters[deviceId]`; the screens see the sums); a cleared game leaves `{ clearedAt }` in its
+  slot and saves carry `savedAt`; `settingsAt` says when a synced setting last changed here.
+- Sync (`docs/design/2026-10-14-cross-device-sync.md`): the cloud copy is a backup envelope of
+  the synced keys, one file per player on the server, named by the hash of a sync code (the
+  server is an nginx DAV location, see `deploy/README.md`). `sync/client.ts` pulls, merges
+  (`sync/merge.ts`, a join: same result in any order), writes what changed and pushes when this
+  side had more. `ui/sync.ts` wires it: saves to synced keys mark it pending and push after a
+  short debounce; the page coming into view or online, and start-up, pull; `pagehide` fires a
+  keepalive push. A pull rebuilds the home screen if it is showing; a play screen keeps its own
+  game, whose next autosave is newer and wins. Pulled settings go through
+  `applySyncedSettings`, which doesn't stamp `settingsAt`, so two devices never ping-pong.
 - Game models emit events (`place`, `complete`, `solved`, …); play screens translate events into
   board animations, particles, callouts, sound and haptics. Models never touch the DOM.
 - The sudoku board is DOM cells (crisp text, accessible `gridcell`s) under an SVG overlay

@@ -3,6 +3,10 @@
 What's new in Nonet, newest first. The app shows this file under Settings → Changelog, so it is
 written for players. Read `docs/CHANGELOG-STYLE.md` before adding to it.
 
+## Unreleased
+
+- **Play on every device.** Turn on sync under Settings → Data, and your scores, settings and games in progress follow you from phone to computer.
+
 ## 0.2.2 — 2026-10-14
 
 - **Note Readability Improvements.** Notes show at full strength around the selected square and stay quiet elsewhere; your own notes are warm, Auto notes cool, and all stay readable.

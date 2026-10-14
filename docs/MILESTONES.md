@@ -62,6 +62,10 @@ killer cage's sum rules out, so they never go stale.
 Backup: Settings → Data saves everything to a JSON file and restores it (replace, after a confirm).
 Settings in tabs, with the build's version and a Changelog modal read from `CHANGELOG.md`.
 
+Sync across devices: a sync code (no accounts) pairs devices; scores, streak, hint counts,
+gameplay settings and games in progress merge as a join (`src/sync/`, property-tested), the cloud
+copy is a backup envelope on an nginx DAV location (`deploy/`), and nothing ever blocks play.
+
 Auto notes is a layer of digits under your own (strike, unstrike, erase), a setting that
 follows you between levels; with it on, hints take what it shows as known, so a killer route
 never re-teaches a cage sum you can already see.
