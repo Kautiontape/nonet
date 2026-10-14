@@ -1,8 +1,8 @@
 # Generator research
 
-Phase 2 of the generator work: how to generate Classic, Killer and Queens boards that fit their
-band on purpose, measured against the v1 packs. Written 2026-10-14. "Approved bands" is what Phase 3
-builds; Shawn approved it the same day.
+How the v2 generators make Classic, Killer and Queens boards that fit their band on purpose,
+measured against the v1 packs: what was tried, what won, the bands Shawn approved, and the packs
+built from them. Written 2026-10-14.
 
 All timings are from one core of an AMD Ryzen 5 7600X running Node through `tsx`. Cost per board is
 the total time of a run divided by the boards it produced, so failed attempts count. Per-board times
@@ -10,8 +10,9 @@ vary widely (Killer Expert boards took between 0.1 and 64 s), so costs are avera
 boards. Two runs of the same Killer Expert settings on different seeds came out at 9.8 and 9.9 s a
 board. Other jobs share this machine, so repeating a run changed its wall-clock time by up to about
 45%; attempt and check counts repeat exactly. Costs under 20 ms come from 40-board runs timed to
-0.1 s and are rough. The experiment scripts are in `research/experiments/` in this worktree and stay
-out of the repo; Phase 3 moves the chosen methods into `src/engine/` and `scripts/`.
+0.1 s and are rough. The experiment scripts were scaffolding and aren't in the repo; the chosen
+methods are in `src/engine/gen/`, and `scripts/gen-bench.ts` and `npm run stats` reproduce their
+costs and the pack comparison.
 
 ## Terms
 
@@ -58,8 +59,8 @@ out of the repo; Phase 3 moves the chosen methods into `src/engine/` and `script
 ## Approved bands
 
 Shawn approved these on 2026-10-14, after changing the first proposal in five places (listed after
-the table). Phase 3 builds them. Cells marked "to measure" have no run behind them yet; Phase 3
-measures them and adjusts if they don't hold.
+the table). Every cell was measured before the build, and the built packs fill every quota ("The v2
+packs").
 
 | Band | Every board | Breather | Standard | Stretch |
 |---|---|---|---|---|
@@ -67,9 +68,9 @@ measures them and adjusts if they don't hold.
 | Classic Medium | singles, pointing and claiming; pairs only in stretches; one or two walls | first wall ≤ 24 empty squares; 1 step past singles | ≤ 28; 2–3 steps | ≤ 34; 3–5 steps, pairs allowed |
 | Classic Hard | tier 1–3 only, with at least one tier-3 step (pairs alone don't count) | one tier-3 step | two | three or more |
 | Classic Expert | 3+ tier-4+ steps; no hardest-step technique on more than about 40% of the pack | no chains (hardest step at tier 4) | 3–5 tier-4+ steps | 6+ |
-| Killer Easy | tier 1–2; up to six one-cell cages | 5–6 one-cell cages | 3–4 | 1–2, cages merged toward the tier-2 limit (to measure) |
+| Killer Easy | tier 1–2; up to six one-cell cages | 5–6 one-cell cages | 3–4 | 1–2, cages merged toward the tier-2 limit |
 | Killer Medium | tier 3 only through 45s over one house; the first 45 is needed before 11 squares are filled | one 45, plus one or two one-cell cages | two 45s, no one-cell cages | three or four 45s, no one-cell cages |
-| Killer Hard | a 45 over 2+ houses or a tier-3 sudoku technique; stuck past the basics at 3+ separate points; no tier-4+ step; no one-cell cages | 5 or fewer 45-rule steps (to measure) | 6–11 | 12+ (to measure) |
+| Killer Hard | a 45 over 2+ houses or a tier-3 sudoku technique; stuck past the basics at 3+ separate points; no tier-4+ step; no one-cell cages | 5 or fewer 45-rule steps | 6–11 | 12+ |
 | Killer Expert | 2+ tier-4+ steps; no one-cell cages; at most two 6-cell cages | 2 tier-4+ steps | 3–4 | 5+ |
 | Queens Easy | tier 1–2 with at least one tier-2 step; never stuck | 6×6 | 6×6 or 7×7 | 7×7 |
 | Queens Medium | touch and counting steps (tier 3–4); stuck once or twice; no contradiction | 7×7, stuck once | 8×8, once or twice | 8×8, twice |
@@ -272,8 +273,9 @@ Medium starting sizes, Killer Hard went from 0.40 s to 0.25 s a board (26 attemp
 | Hard | 16 | 0.25 s | 6–21 (8) | 22–27 (25) | 0.39 s, 3–19 45-rule steps (10) |
 | Expert, 3+ tier-4+ steps | 16 | 10.7 s | 2–18 (10) | 21–28 (23) | 9.9 s on 8 boards; 6 of 14 seeds fail; 1–2 tier-4+ steps on those 8 |
 
-The Hard boards stop hardening at the first board that qualifies, and the smallest had 6 45-rule
-steps, so the Hard breather and stretch targets in the table need their own runs in Phase 3.
+Measured on 30 more Hard boards before the build: 6 had five or fewer 45-rule steps (the breather
+target), 17 had 6–11 (standard) and 7 had 12 or more (stretch). Killer Easy stretches, merged as far
+as tier 1–2 allows, kept one or two one-cell cages on 16 of 30 boards, at about 0.2 s a kept board.
 
 Killer Medium boards need their 45 early: the first wall comes with 52–81 squares open (median 80).
 Adding "first wall at 60 or fewer open squares" as a rule gave boards whose first 45 comes after
