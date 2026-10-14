@@ -1,8 +1,8 @@
 # Generator research
 
 Phase 2 of the generator work: how to generate Classic, Killer and Queens boards that fit their
-band on purpose, measured against the v1 packs. Written 2026-10-14. The thresholds in "Proposed
-bands" are product decisions; Phase 3 builds them once Shawn has approved or changed them.
+band on purpose, measured against the v1 packs. Written 2026-10-14. "Approved bands" is what Phase 3
+builds; Shawn approved it the same day.
 
 All timings are from one core of an AMD Ryzen 5 7600X running Node through `tsx`. Cost per board is
 the total time of a run divided by the boards it produced, so failed attempts count. Per-board times
@@ -35,9 +35,9 @@ out of the repo; Phase 3 moves the chosen methods into `src/engine/` and `script
 
 ## Results
 
-| Mode and band | v1 method | Proposed method | What changes, v1 → proposed | Cost per board, v1 → proposed |
+| Mode and band | v1 method | New method | What changes, v1 → new | Cost per board, v1 → new |
 |---|---|---|---|---|
-| Classic Easy | dig to 36 givens | strip with a singles-only check and a floor on early options | early options set per board (7–10, 10–14 or 14+) instead of anywhere from 5.6 to 25.3 | 2.5 ms → 10–12 ms |
+| Classic Easy | dig to 36 givens | strip with a cross-hatching-only check and a floor on early options | early options set per board (10–14, 14–18 or 18+) instead of anywhere from 5.6 to 25.3; never a naked single | 2.5 ms → about 10 ms |
 | Classic Medium | dig to 27+ givens, keep tier 2 | dig, fill back until the wall is late, strip again | first wall at a median of 23–32 empty squares by sub-target, against 38; 1–5 steps past singles, against 1–7 | 35 ms → 0.28–0.38 s |
 | Classic Hard | dig to minimal, keep tier 3 | dig, fill to the tier-3 limit, strip again | boards with a single tier-3 step become breathers only | 27 ms → 62 ms |
 | Classic Expert | dig to minimal, keep tier 4+ | the same dig, keeping boards with 3+ tier-4+ steps | every board has 3+ tier-4+ steps, against 30 of 60 | ≤ 0.1 s → 42 ms |
@@ -45,58 +45,62 @@ out of the repo; Phase 3 moves the chosen methods into `src/engine/` and `script
 | Killer Medium | lay out, repair at tier 3 | lay out, repair, merge until 1–4 single-house 45s | the 45 rule is used 1–4 times, set per board, against 1–18 | 0.23 s → 0.26–0.35 s |
 | Killer Hard | lay out, repair | lay out, repair with one-cell cages allowed, merge | no attempt fails at repair | 0.39 s → 0.25 s |
 | Killer Expert | lay out, repair; 6 of 14 seeds fail | lay out, repair, merge to harden, with a cage-size guard | 2–9 tier-4+ steps (2, 3–4 or 5+ by sub-target), against a median of 1 in the v1 pack (range 1–5) | 9.9 s → about 11 s |
-| Queens, all bands | grow regions, repair, grade | the same, with size and step-count rules per sub-target | Medium can be 7×7; Expert capped at 8 contradiction steps | 2–37 ms → 0.5 ms to 0.26 s |
+| Queens, all bands | grow regions, repair, grade | the same, with rules on size, how often you're stuck, and contradiction count | Medium and Hard differ by how often you're stuck; Expert capped at 8 contradiction steps | 2–37 ms → 0.5 ms to 0.26 s |
 
 - The v1 Killer costs above already include a solver change from this phase (commit `583830e`,
   "Solver speed" below), which makes every Killer solve 2.4–2.9× faster, so the columns compare
   methods. Before it, v1 Killer Expert took about 28 s a board. The v1 Classic Expert figure was
   measured before this phase.
-- Every proposed method ends with the same check: the hint engine's own solve, with every
+- Every new method ends with the same check: the hint engine's own solve, with every
   technique the hints use, must finish and meet the band's rules. Classic boards also get an exact
   uniqueness check (0.04 ms).
 
-## Proposed bands
+## Approved bands
 
-Each row gives the rule every board in the band meets, then each sub-target's target. The costs and
-measured spreads behind each cell are in the mode sections below; cells marked "not measured" are
-proposals without a run behind them yet.
+Shawn approved these on 2026-10-14, after changing the first proposal in five places (listed after
+the table). Phase 3 builds them. Cells marked "to measure" have no run behind them yet; Phase 3
+measures them and adjusts if they don't hold.
 
 | Band | Every board | Breather | Standard | Stretch |
 |---|---|---|---|---|
-| Classic Easy | singles only; no walls | early options 14+ | 10–14 | 7–10 |
-| Classic Medium | singles, pointing and claiming (no pairs); first wall at ≤ 34 empty squares; one or two walls | first wall ≤ 24; 1 step past singles | ≤ 28; 2–3 steps | ≤ 34; 3–5 steps |
-| Classic Hard | tier 1–3, pairs included; no tier-4+ step | pairs only (not measured), or one tier-3 step | 2 tier-3 steps | 3+ tier-3 steps |
-| Classic Expert | 3+ tier-4+ steps | no chains (hardest step at tier 4) | 3–5 tier-4+ steps | 6+ |
-| Killer Easy | tier 1–2; at most two one-cell cages | 33+ cages | 30–32 cages | 29 or fewer |
-| Killer Medium | tier 3 only through 45s over one house | one 45-rule step | two | three or four |
-| Killer Hard | a 45 over 2+ houses or a tier-3 sudoku technique; no tier-4+ step; no one-cell cages | 5 or fewer 45-rule steps (not measured) | 6–11 | 12+ (not measured) |
+| Classic Easy | singles found by cross-hatching only (never a naked single); no walls; at every point at least two squares can be filled by looking | early options 18+ | 14–18 | 10–14 |
+| Classic Medium | singles, pointing and claiming; pairs only in stretches; one or two walls | first wall ≤ 24 empty squares; 1 step past singles | ≤ 28; 2–3 steps | ≤ 34; 3–5 steps, pairs allowed |
+| Classic Hard | tier 1–3 only, with at least one tier-3 step (pairs alone don't count) | one tier-3 step | two | three or more |
+| Classic Expert | 3+ tier-4+ steps; no hardest-step technique on more than about 40% of the pack | no chains (hardest step at tier 4) | 3–5 tier-4+ steps | 6+ |
+| Killer Easy | tier 1–2; up to six one-cell cages | 5–6 one-cell cages | 3–4 | 1–2, cages merged toward the tier-2 limit (to measure) |
+| Killer Medium | tier 3 only through 45s over one house; the first 45 is needed before 11 squares are filled | one 45, plus one or two one-cell cages | two 45s, no one-cell cages | three or four 45s, no one-cell cages |
+| Killer Hard | a 45 over 2+ houses or a tier-3 sudoku technique; stuck past the basics at 3+ separate points; no tier-4+ step; no one-cell cages | 5 or fewer 45-rule steps (to measure) | 6–11 | 12+ (to measure) |
 | Killer Expert | 2+ tier-4+ steps; no one-cell cages; at most two 6-cell cages | 2 tier-4+ steps | 3–4 | 5+ |
-| Queens Easy | tier 1–2, with at least one tier-2 step | 6×6 | 6×6 or 7×7 | 7×7 |
-| Queens Medium | tier 3 | 7×7, one tier-3 step | 8×8, one or two | 8×8, three or four |
-| Queens Hard | tier 4 | 8×8 | 9×9 | 9×9 with 2+ tier-4 steps |
-| Queens Expert | tier 5, at most 8 contradiction steps | 9×9, two contradictions | 9×9 or 10×10, three to five | 10×10, six to eight |
+| Queens Easy | tier 1–2 with at least one tier-2 step; never stuck | 6×6 | 6×6 or 7×7 | 7×7 |
+| Queens Medium | touch and counting steps (tier 3–4); stuck once or twice; no contradiction | 7×7, stuck once | 8×8, once or twice | 8×8, twice |
+| Queens Hard | touch and counting steps; stuck at 3+ separate points; no contradiction | 8×8, three times | 9×9, three times | 9×9, four or more |
+| Queens Expert | contradiction ("what if") 2–8 times | 9×9, two | 9×9 or 10×10, three to five | 10×10, six to eight |
 
-Decisions in this table that change what players see:
+Changes from the first proposal:
 
-- **Classic Easy gets harder on average.** Standard boards land near 30 givens and early options
-  of about 11, against v1's 36 givens and a median of 14.2. Breathers keep v1's level.
-- **Classic Medium has no pairs.** HoDoKu and QQWing put pairs in their middle tier with pointing
-  and claiming; the brief moves them to Hard. Medium boards need a late wall and one to five
-  pointing or claiming steps.
-- **A single hard step makes a breather.** About half of Classic Hard boards need exactly one tier-3
-  step. SudokuWiki rejects boards that are easy except for one bottleneck; here they are kept, as
-  breathers only.
-- **Killer Medium's 45 comes at the start.** On the median board the first step past the basics is a
-  45 with 80 of 81 squares still open. Requiring it after about 20 placements (60 or fewer squares
-  open) costs 4.9 s a board instead of 0.26 s. The table doesn't require it.
-- **Killer Expert's standard is 3+ tier-4+ steps, as the brief proposed; breathers have 2.** The v1
-  Killer Expert pack has a median of 1 (range 1–5). Each kept board costs about 11 s here.
-- **Classic Expert breathers have no chains.** Left alone, 56 of 60 Classic Expert boards have a chain
-  (AIC, XY-chain or X-chain) as their hardest step.
-- **Queens Medium includes 7×7 boards, and Queens Expert caps contradictions at 8.** The v1 Expert
-  pack has a board with 25 contradiction steps.
-- **An X-Wing makes a Killer board Hard.** v1's grading would have called it Medium ("Notes on
-  grading").
+- **Classic Easy is gentler, for players who don't use pencil marks.** The first proposal made
+  standard Easy slightly harder (early options 10–14). With floors of 10, 14 or 18 early options, none
+  of 120 test boards needed a naked single and none ever had fewer than two squares to fill, so
+  "cross-hatching only" costs nothing extra. Floors of 18 give boards of 30–46 givens (median 34) at
+  about 10 ms each.
+- **Pairs go in Classic Medium stretches.** HoDoKu, QQWing and SudokuWiki put pairs in their middle
+  level, and Nonet's tiers put pairs with pointing and claiming. A naked pair is hard to see without
+  notes, so breather and standard Medium boards keep to pointing and claiming. Hard boards always
+  need a tier-3 step; pairs alone no longer make a board Hard.
+- **Killer hands out one-cell cages at Easy, and Medium breathers get one or two.** With up to six
+  allowed, Easy boards came out with 2–6 (most 4–6) at 0.08 s each. With up to two allowed, 11 of 16
+  Medium boards got two, at 0.14 s each. SudokuWiki's generator says one-cell cages are "useful for
+  gentle and moderate Killers but not suitable for higher grades"; Simon Tatham's Solo keeps them only
+  at its easiest Killer level.
+- **Killer Medium always opens with a 45.** Requiring the first 45 before 11 squares are filled
+  costs 0.31 s a board; 11 of 16 boards need it before any square is filled anyway. Making Killer
+  Hard's first 45 come late isn't workable: all 16 test Hard boards need one before the first square,
+  and requiring it after 20 produced no board in 11 minutes. Requiring Hard's first 45 to span several
+  houses worked but cost about 2.5 minutes a board. Hard boards already need a 45 or harder step again
+  and again (stuck at 3–12 separate points, median 6, against 1–2 in Medium), so that is Hard's rule.
+- **Queens bands are built on three ideas instead of on tiers.** See the Queens section: a count of 2
+  and a count of 3 are the same idea, and what separates boards is how often nothing on the board
+  tells you anything on its own.
 
 ## Classic
 
@@ -168,7 +172,7 @@ singles:
 
 The fill keeps boards that dug past tier 3: digits go back until tier 1–3 solves them, so they
 become Hard boards, and 424 attempts were needed against 581. It is also the Medium pipeline with a
-different technique limit, which is why it's proposed. Sub-targets select from what it produces:
+different technique limit, which is why it was chosen. Sub-targets select from what it produces:
 about half the boards have one tier-3 step, a third have two, and a fifth have three or more, so a
 standard board costs about 0.2 s and a stretch board about 0.3 s. Boards whose hardest step is a
 pair are tier 2 and were not collected in these runs.
@@ -234,7 +238,7 @@ Medium starting sizes, Killer Hard went from 0.40 s to 0.25 s a board (26 attemp
 |---|---|---|---|---|---|
 | Easy, as laid out | 16 | 0.16 s | 0 | 30–36 (33) | 44 ms, 29–36 cages (32) |
 | Easy, merged as far as tier 1–2 allows | 16 | 0.23 s | 0 | 26–33 (28) | |
-| Medium, at most two 45s | 16 | 0.26 s | 1–2 (1) | 22–31 (28) | 0.23 s; 8 of 20 v1 boards fail the proposed rule |
+| Medium, at most two 45s | 16 | 0.26 s | 1–2 (1) | 22–31 (28) | 0.23 s; 8 of 20 v1 boards fail the approved rule |
 | Medium, three or four 45s | 16 | 0.35 s | 3–4 (4) | 25–30 (28) | |
 | Hard | 16 | 0.25 s | 6–21 (8) | 22–27 (25) | 0.39 s, 3–19 45-rule steps (10) |
 | Expert, 3+ tier-4+ steps | 16 | 10.7 s | 2–18 (10) | 21–28 (23) | 9.9 s on 8 boards; 6 of 14 seeds fail; 1–2 tier-4+ steps on those 8 |
@@ -248,7 +252,7 @@ Adding "first wall at 60 or fewer open squares" as a rule gave boards whose firs
 
 ### Expert
 
-Cost by the number of tier-4+ steps required, with the proposed method (16 boards each):
+Cost by the number of tier-4+ steps required, with the new method (16 boards each):
 
 | Required | Cost per board | Tier-4+ steps | Hardest step |
 |---|---|---|---|
@@ -279,8 +283,8 @@ measured).
 | | Cages per board | Sizes over all boards | Mean size | 6-cell cages per board |
 |---|---|---|---|---|
 | v1 Expert (29 boards) | 22–28 (26) | 2:285 3:226 4:139 5:61 6:40 | 3.1 | 0–4 (1) |
-| proposed Expert, 3+ (16 boards) | 21–28 (23) | 2:102 3:113 4:91 5:61 6:14 | 3.4 | 0–2 (1) |
-| proposed Expert without the guard (12 boards) | 20–27 (24) | 2:81 3:80 4:53 5:50 6:18 | 3.4 | 0–3 (2) |
+| new Expert, 3+ (16 boards) | 21–28 (23) | 2:102 3:113 4:91 5:61 6:14 | 3.4 | 0–2 (1) |
+| new Expert without the guard (12 boards) | 20–27 (24) | 2:81 3:80 4:53 5:50 6:18 | 3.4 | 0–3 (2) |
 
 The guard (at most two 6-cell cages, none larger) rarely binds. One-combination cages stay at 0–4 per
 board (v1: 0–3).
@@ -299,19 +303,34 @@ attempts give a unique board. Counts below are out of 2,000 attempts (1,500 at 9
 | 9×9, Expert | 281 | 305 | 62 | 63 | tier 5: one on 15, two on 12, three to five on 20, six to eight on 7, nine or more on 9 |
 | 10×10, Expert | 92 | 149 | 42 | 37 | tier 5: one on 9, two on 10, three to five on 5, six to eight on 9, nine or more on 4 |
 
-- Medium no longer has to grow and add a tier at once: 7×7 boards reach tier 3 as often as 8×8 (20%
-  and 21% of attempts). A 7×7 board with exactly one tier-3 step costs about 7 ms, and an 8×8 board
-  with one or two about 6 ms.
-- The first tier-3 step comes with about half the board open at both sizes (median about 25 of 49
-  cells at 7×7, about 32 of 64 at 8×8). A rule asking for it later would be cheap; the table doesn't
-  include one.
-- Tier-4 boards are rare (1–4% of attempts) and nearly always need one tier-4 step, so the Hard
-  stretch asks for two: 7 in 1,500 attempts at 9×9, about 0.26 s a board. An 8×8 breather costs about
-  52 ms and a 9×9 standard board 36 ms.
-- Tier 5 shows up in 3–4% of attempts. The Expert sub-targets cost about 0.16 s (9×9, two
-  contradictions), 0.1 s (9×9, three to five) and 0.24 s (10×10, six to eight).
-- The cap of 8 contradictions removes 14% of 9×9 tier-5 boards and 11% at 10×10. Each contradiction step is a trial
-  placement followed to a dead end; v1 Expert has a board with 25.
+Queens has four ideas: the last cell (a row, column or region with one cell left), touching (a
+queen on a cell would knock out every cell of some region or line), counting (n regions confined to
+n lines, or the reverse) and contradiction ("what if": place a queen, follow the forced moves, find a
+dead end). The tiers order them, but tier 3 and tier 4 split counting by its size: a count of 2 is
+tier 3, a count of 3 or more tier 4, and a region confined to one line (a count of 1) is tier 2.
+Measured over the same sizes (2,000 attempts each, 1,500 at 9×9, 1,000 at 10×10):
+
+| Measure | Tier 2 | Tier 3 | Tier 4 | Tier 5 |
+|---|---|---|---|---|
+| States where no row, column or region says anything on its own (median share) | 7–11% | 28–38% | 38–47% (8×8 and up) | 50–53% |
+| Boards needing the mixed touch step | none | 95–97% | 82–100% | 75–98% |
+| Boards needing a count of 2 | none | 33–67% | 45–57% | 40–70% |
+| Stuck at 3+ separate points | none | 6–10% | 21–25% (8×8 and up) | 39–50% |
+
+- What separates Queens boards is how often nothing on the board says anything on its own, more than
+  the size of the count. Tier-3 boards are mostly about touching (95–97% need it), and only 33–67%
+  need even a count of 2.
+- The longest contradiction chain is one forced move on 79% (10×10) to 97% (8×8) of tier-5 boards, so
+  contradiction difficulty comes from how often it's needed.
+- So the approved bands use three ideas: the basics (Easy), touch and counting (Medium and Hard, which
+  differ by how often you get stuck), and contradiction (Expert). Medium is stuck once or twice; Hard
+  is stuck at three or more points, about 1 in 10 tier 3–4 boards.
+
+Costs per board for the approved sub-targets: Medium about 4 ms (7×7, stuck once), 3 ms (8×8, once or
+twice) and 10 ms (8×8, twice); Hard about 27 ms (8×8, three times), 46 ms (9×9, three or more) and
+0.26 s (9×9, four or more); Expert about 0.16 s (9×9, two contradictions), 0.1 s (9×9, three to five)
+and 0.24 s (10×10, six to eight). The cap of 8 contradictions removes 14% of 9×9 tier-5 boards and
+11% at 10×10; v1 Expert has a board with 25.
 - Twins under rotation or reflection: none in the v1 packs, and none among 1,000 generated 6×6 and
   1,000 7×7 Easy boards. The pack builder will still drop them; the check costs microseconds.
 
@@ -384,7 +403,7 @@ claims that couldn't be verified, are in `generator-prior-art.md`.
 No tier or rating changes. Two existing behaviours matter for the bands:
 
 - v1's Killer grading sends tier 3 with rating 3.2 or less to Medium, so an X-Wing (3.2) counts as
-  Medium. No v1 Medium board uses one. The proposed rules read technique ids and house counts from the
+  Medium. No v1 Medium board uses one. The approved rules read technique ids and house counts from the
   profile, so an X-Wing makes a board Hard.
 - The full solver can take a different path from a capped check. Inside a Killer check limited to
   tier 2, a hidden pair (3.4) may be the next step where the full solver would first take a 45-rule
