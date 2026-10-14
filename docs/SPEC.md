@@ -40,9 +40,9 @@ Easy / Medium / Hard / Expert per mode, graded by the hardest technique the logi
   on it repeats the last digit. **Hold an empty square** (a deliberate ~1.5 s press, one knob in
   `sudoku-board.ts`) and a wheel of digit dots floats around it; flick toward one and let go to
   enter it — as an answer or a note, following the mode — or release near the centre to cancel.
-- **Auto notes** is a layer, not a fill: dim digits under your own notes, showing what the rules
+- **Auto notes** is a layer, not a fill: lighter digits under your own notes, showing what the rules
   still allow in every empty square (cage sums applied in killer), recomputed as you play. What
-  you see is what you toggle: in notes mode, tap a dim digit to strike it, tap a struck digit to
+  you see is what you toggle: in notes mode, tap a lighter digit to strike it, tap a struck digit to
   bring it back, and a digit the layer doesn't show goes in as your own bright note. Your notes
   take precedence in a square; Erase clears its strikes too. The layer is a setting (toolbar
   button or **A**), so it follows you to the next level, and strikes are saved with the game.

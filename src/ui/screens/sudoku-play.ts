@@ -515,7 +515,7 @@ class SudokuPlay implements Screen {
     sound.ui("toggle");
     buzz("note");
     if (on && firstTime("tip-auto-notes"))
-      toast("Dim digits are what the rules still allow. Tap one in notes mode to strike it; your own notes stay bright.", "info", 6000);
+      toast("Lighter digits are what the rules still allow. Tap one in notes mode to strike it; your own notes stay bold.", "info", 6000);
   }
 
   /**

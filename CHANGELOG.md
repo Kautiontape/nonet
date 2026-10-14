@@ -3,6 +3,10 @@
 What's new in Nonet, newest first. The app shows this file under Settings → Changelog, so it is
 written for players. Read `docs/CHANGELOG-STYLE.md` before adding to it.
 
+## Unreleased
+
+- **Notes you can read.** Notes and Auto notes are bigger, bolder and brighter, so a 1 no longer fades into the board.
+
 ## 0.2.0 — 2026-10-13
 
 - **Back up your progress.** Settings → Data saves your scores, settings and games to a file you can restore on another device.

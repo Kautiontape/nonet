@@ -1009,21 +1009,23 @@ button:disabled {
   background: rgba(255, 77, 109, 0.18);
 }
 
-/* notes */
+/* notes — legibility first: every note colour keeps at least 4.5:1 against every board
+   background (board, peer, matching-digit and selected squares, all four themes), and the
+   player's own notes at least 7:1. tests/ui/notes-contrast.test.ts holds these lines to that. */
 .notes {
   position: absolute;
-  inset: 5%;
+  inset: 3%;
   display: grid;
   grid-template: repeat(3, 1fr) / repeat(3, 1fr);
-  font-size: calc(var(--cell) * 0.235);
-  font-weight: 500;
-  color: #9ca8d4;
+  font-size: calc(var(--cell) * 0.29);
+  font-weight: 650;
+  color: #dde3f8;
   pointer-events: none;
 }
 
 .cell.has-sum .notes {
-  top: 25%;
-  font-size: calc(var(--cell) * 0.2);
+  top: 28%;
+  font-size: calc(var(--cell) * 0.245);
 }
 
 .notes i {
@@ -1040,14 +1042,12 @@ button:disabled {
   opacity: 1;
 }
 
-/* The auto-note layer: the machine's digits, dim and cooler than the player's. */
+/* The auto-note layer: the machine's digits, lighter in weight and cooler than the player's
+   bold ones, but never faint — at 45% opacity a 1 vanished (it's one thin stroke). */
 .notes i.auto {
-  opacity: 0.45;
-  color: #7d88aa;
-}
-
-.notes i.auto.match {
-  opacity: 0.85;
+  opacity: 1;
+  color: #b4bfe0;
+  font-weight: 450;
 }
 
 .notes i.match {
