@@ -1,9 +1,10 @@
 name: Deploy to production
 # Production only moves on a release: push a tag like v1.2.0 (or publish a GitHub Release, which
-# pushes the tag). Every push to main goes to /beta/ instead — see deploy-beta.yml.
+# pushes the tag). Every push to main goes to /beta/ instead — see deploy-beta.yml. A pre-release
+# tag (anything with a suffix, like v1.2.0-beta.1) only labels the beta and never deploys here.
 on:
   push:
-    tags: ["v*"]
+    tags: ["v*", "!v*-*"]
   workflow_dispatch:
 concurrency:
   group: deploy-production

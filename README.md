@@ -79,7 +79,8 @@ Two copies on one host, both built by a self-hosted GitHub Actions runner on **k
   tag like `v0.1.0` (`git tag v0.1.0 && git push origin v0.1.0`, or publish a GitHub Release).
   The runner checks that tag out in `/opt/services/nonet` and builds it
   (`.github/workflows/deploy.yml`; it can also be run by hand from the Actions tab). The steps
-  are in `docs/CHANGELOG-STYLE.md`.
+  are in `docs/CHANGELOG-STYLE.md`. A pre-release tag (`v0.2.0-beta.1`) never deploys
+  production; it only names the beta.
 
 Settings shows the build's `git describe`: "Version 0.1.0" at a tag, "Beta v0.1.0-3-gabc1234"
 past one (both checkouts fetch tags for this).

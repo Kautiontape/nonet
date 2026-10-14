@@ -58,4 +58,8 @@ The app reads only this; `tests/ui/changelog.test.ts` fails if the file drifts f
    `git push origin main && git tag vX.Y.Z && git push origin vX.Y.Z`. Production builds the
    tag, and its Settings shows "Version X.Y.Z".
 
+To label a beta before releasing, tag `vX.Y.Z-beta.N` instead and push it with main. Production
+ignores tags with a suffix; the beta's Settings shows "Beta vX.Y.Z-beta.N", and the changelog
+keeps its Unreleased heading until the real release.
+
 Versions: bump the patch for fixes only, the minor for anything new. Stay below 1.0 for now.
