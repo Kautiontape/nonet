@@ -15,6 +15,7 @@
     "gen": "tsx scripts/generate-pack.ts",
     "audio-check": "tsx scripts/audio-check.ts",
     "queens-stats": "tsx scripts/queens-stats.ts",
+    "stats": "tsx scripts/pack-stats.ts",
     "examples": "tsx scripts/harvest-examples.ts",
     "build:artifact": "tsx scripts/build-artifact.ts dist-artifact"
   },
