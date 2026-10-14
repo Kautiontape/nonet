@@ -101,8 +101,9 @@ tests/
   notes a step wrote never trip it.
 - **Auto-note layer.** `SudokuGame.layer()` is never stored: `candidatesNow()` (cage-sum
   candidates in killer, basic in classic) less `known`, the player's strikes (`hidden`, saved)
-  and their own notes; the board draws it (`.notes i.auto`, for now in the same grey as the
-  player's notes). With the layer on, `effectiveKnown()` adds what it rules out to `known` for
+  and their own notes; the board draws it (`.notes i.auto`) cool where the player's notes are
+  warm, quiet away from the selection and at full strength in its houses and cage (pure CSS on
+  the `sel`/`peer`/`cage-peer` classes; see docs/design/2026-10-14-notes-visibility.md). With the layer on, `effectiveKnown()` adds what it rules out to `known` for
   the hint engine — sound, since the layer comes from the rules — so hints never re-teach it,
   and `visibleNotes()` (own notes plus the layer) goes in as `HintInput.visible`, used only to
   mark a route step `already` shown.

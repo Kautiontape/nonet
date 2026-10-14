@@ -1009,10 +1009,11 @@ button:disabled {
   background: rgba(255, 77, 109, 0.18);
 }
 
-/* notes — legibility first: every note colour keeps at least 4.5:1 against every board
-   background (board, peer, matching-digit and selected squares, all four themes).
-   tests/ui/notes-contrast.test.ts holds these lines to that. For now every note, the player's
-   and the auto layer's, is this one grey: bright notes looked too much like the big digits. */
+/* notes — two axes (docs/design/2026-10-14-notes-visibility.md). Hue says whose: the player's
+   notes are warm, the auto layer's cool. Brightness says where: quiet across the board, full
+   strength in the selected square and its row, column, box and cage. Every colour keeps at least
+   4.5:1 over every background its state meets, in all four themes; tests/ui/notes-contrast.test.ts
+   holds these lines to that, so a note can never fade out again. */
 .notes {
   position: absolute;
   inset: 3%;
@@ -1020,7 +1021,7 @@ button:disabled {
   grid-template: repeat(3, 1fr) / repeat(3, 1fr);
   font-size: calc(var(--cell) * 0.29);
   font-weight: 600;
-  color: #9ca8d4;
+  color: #aa9f84;
   pointer-events: none;
 }
 
@@ -1036,17 +1037,28 @@ button:disabled {
   opacity: 0;
   line-height: 1;
   border-radius: 50%;
-  transition: opacity 0.15s;
+  transition: opacity 0.15s, color 0.15s;
 }
 
 .notes i.on {
   opacity: 1;
 }
 
-/* The auto-note layer: the machine's digits. Shown exactly like the player's own for now; never
-   faint — at 45% opacity a 1 vanished (it's one thin stroke). */
+/* The auto-note layer: the machine's digits, cool where the player's are warm. Never faint — at
+   45% opacity a 1 vanished (it's one thin stroke). */
 .notes i.auto {
   opacity: 1;
+  color: #8e9ac3;
+}
+
+/* Focus: the selected square and its houses and cage show notes at full strength; the rest of
+   the board stays quiet. :where() keeps these below .notes i.match, which still wins. */
+:where(.cell.sel, .cell.msel, .cell.peer, .cell.cage-peer) .notes {
+  color: #f3e9cb;
+}
+
+:where(.cell.sel, .cell.msel, .cell.peer, .cell.cage-peer) .notes i.auto {
+  color: #cfd8f6;
 }
 
 .notes i.match {

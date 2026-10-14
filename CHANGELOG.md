@@ -3,6 +3,10 @@
 What's new in Nonet, newest first. The app shows this file under Settings → Changelog, so it is
 written for players. Read `docs/CHANGELOG-STYLE.md` before adding to it.
 
+## Unreleased
+
+- **Notes that step back.** Notes show at full strength around the selected square and stay quiet elsewhere; your own notes are warm, Auto notes cool, and all stay readable.
+
 ## 0.2.1 — 2026-10-14
 
 - **Notes you can read.** For now, your notes and Auto notes are all one grey, a little bigger and bolder, so a 1 no longer fades into the board.

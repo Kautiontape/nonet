@@ -49,6 +49,8 @@ Easy / Medium / Hard / Expert per mode, graded by the hardest technique the logi
 - Placing a digit auto-removes it from notes in the same row/col/box/**cage**, and (killer) takes
   out of the cage's other notes any digit its remaining sum no longer allows (setting).
 - Highlights: selected cell, its peers, its cage, every cell with the same digit, matching notes.
+  Notes show at full strength in the selected cell, its peers and its cage and stay quiet (but
+  readable, 4.5:1 or better) elsewhere; your own notes are warm, auto notes cool.
 - Digit pad shows how many of each digit remain; finished digits dim.
 - Killer: a cage bar lists the selected cage's combinations, striking out ones that clash with
   digits already placed in a house the cage lives in (setting). Its **Σ45 lens** works the 45 rule

@@ -753,6 +753,36 @@ test("killer: Auto notes is a layer — dim digits you can strike, under your ow
   expect(await page.locator(".notes i.auto").count()).toBeGreaterThan(0);
 });
 
+test("notes focus on the selection: its peers' notes brighten, a far square's stay quiet", async ({ page }) => {
+  await page.goto("/?play=classic-easy");
+  const cells = await readBoard(page);
+  await page.getByTestId("tool-auto").click();
+  await expect(page.locator(".notes i.auto").first()).toBeAttached();
+  const empty = cells.filter((c) => !c.value);
+  const a = empty[0]!;
+  const peer = empty.find((c) => c.r === a.r && c.c !== a.c)!;
+  const far = empty.find((c) => c.r !== a.r && c.c !== a.c && c.b !== a.b)!;
+  const autoNote = (cell: number) => cellLocator(page, cell).locator(".notes i.auto").first();
+  // Note colours transition for 0.15s: read one once two reads 200ms apart agree.
+  const colour = async (cell: number): Promise<string> => {
+    const read = () => autoNote(cell).evaluate((el) => getComputedStyle(el).color);
+    let last = await read();
+    for (;;) {
+      await page.waitForTimeout(200);
+      const now = await read();
+      if (now === last) return now;
+      last = now;
+    }
+  };
+  // Nothing selected: every note is quiet, the same colour everywhere.
+  const quiet = await colour(far.cell);
+  expect(await colour(peer.cell)).toBe(quiet);
+  await cellLocator(page, a.cell).click();
+  expect(await colour(peer.cell)).not.toBe(quiet);
+  expect(await colour(far.cell)).toBe(quiet);
+  await page.screenshot({ path: "test-results/screens/notes-focus.png" });
+});
+
 test("backup: save a file, then restore it from the game menu over newer progress", async ({ page }, testInfo) => {
   // Pin the download path: a touch device with file sharing would open the share sheet instead.
   await page.addInitScript(() => Object.defineProperty(Navigator.prototype, "canShare", { value: undefined }));
