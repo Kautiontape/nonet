@@ -3,6 +3,10 @@
 What's new in Nonet, newest first. The app shows this file under Settings → Changelog, so it is
 written for players. Read `docs/CHANGELOG-STYLE.md` before adding to it.
 
+## Unreleased
+
+- Fixed: offline, a puzzle you hadn't opened before said it couldn't load. Every pack is now kept on your device after your first visit.
+
 ## 0.3.0 — 2026-10-14
 
 - **Play on every device.** Turn on sync under Settings → Data, and your scores, settings and games in progress follow you from phone to computer.

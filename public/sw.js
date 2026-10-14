@@ -5,11 +5,31 @@
 const SCOPE = new URL(self.registration.scope).pathname;
 const CACHE = `nonet-v1@${SCOPE}`;
 
+/** Every mode × difficulty pack, plus the Learn screen's worked examples: under 300 KB in all. */
+const PACKS = ["classic", "killer", "queens"]
+  .flatMap((mode) => ["easy", "medium", "hard", "expert"].map((d) => `./packs/${mode}-${d}.json`))
+  .concat("./packs/examples.json");
+
+/**
+ * Install caches everything one online visit needs to play offline later: the page, its script
+ * and stylesheet (their names carry a hash, so they are read off the page itself), the manifest
+ * and icon, and every pack. Each file is added on its own, so one that fails never blocks the
+ * rest; fonts load lazily and fall back to system faces offline.
+ */
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
       .open(CACHE)
-      .then((c) => c.addAll(["./", "./manifest.webmanifest", "./icons/icon-192.png"]))
+      .then(async (c) => {
+        let assets = [];
+        const page = await fetch("./").catch(() => null);
+        if (page && page.ok) {
+          const html = await page.clone().text();
+          await c.put("./", page);
+          assets = [...html.matchAll(/(?:src|href)="(\.\/assets\/[^"]+)"/g)].map((m) => m[1]);
+        }
+        await Promise.all([...assets, "./manifest.webmanifest", "./icons/icon-192.png", ...PACKS].map((url) => c.add(url).catch(() => {})));
+      })
       .catch(() => {})
       .then(() => self.skipWaiting()),
   );
