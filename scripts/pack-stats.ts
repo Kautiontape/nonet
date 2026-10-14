@@ -16,7 +16,7 @@ import { DIFFICULTIES, type Difficulty } from "../src/engine/types";
 
 type Mode = "classic" | "killer" | "queens";
 type SetName = "v1" | "v2";
-type Profile = SudokuProfile | QueensProfile;
+type Profile = (SudokuProfile | QueensProfile) & { st?: string };
 
 function arg(name: string, fallback: string): string {
   const i = process.argv.indexOf(`--${name}`);
@@ -30,14 +30,16 @@ function profilePack(set: SetName, mode: Mode, band: Difficulty): { id: string; 
   const file = `${DIR[set]}/${mode}-${band}.json`;
   if (!existsSync(file)) return null;
   const pack = JSON.parse(readFileSync(file, "utf8")) as SudokuPack | QueensPack;
+  // v2 entries also carry their sub-target (st: b / s / x).
+  const st = (e: object) => ("st" in e ? (e as { st: string }).st : undefined);
   if (pack.mode === "queens")
     return pack.puzzles.map((e) => {
       const p = decodeQueens(e);
-      return { id: contentId(p), profile: profileQueens(p) };
+      return { id: contentId(p), profile: { ...profileQueens(p), st: st(e) } };
     });
   return pack.puzzles.map((e) => {
     const p = decodeSudoku(e);
-    return { id: contentId(p), profile: profileSudoku(p) };
+    return { id: contentId(p), profile: { ...profileSudoku(p), st: st(e) } };
   });
 }
 
@@ -84,6 +86,10 @@ function mix(ps: Profile[]): string {
 
 const COMMON: Row<Profile>[] = [
   { label: "boards", cell: (ps) => String(ps.length) },
+  {
+    label: "breather / standard / stretch",
+    cell: (ps) => (ps.some((p) => p.st) ? ["b", "s", "x"].map((c) => ps.filter((p) => p.st === c).length).join(" / ") : "—"),
+  },
   { label: "solved by the hint engine", cell: (ps) => share(ps.filter((p) => p.solved).length, ps.length) },
   { label: "hardest tier", cell: (ps) => hist(ps.map((p) => p.tier)) },
   { label: "steps beyond the floor", cell: (ps) => range(ps.map((p) => p.beyond)) },
@@ -100,6 +106,8 @@ const COMMON: Row<Profile>[] = [
 
 const CLASSIC: Row<SudokuProfile>[] = [
   { label: "givens", cell: (ps) => range(ps.map((p) => p.givens)) },
+  { label: "needs a naked single", cell: (ps) => share(ps.filter((p) => (p.counts["naked-single"] ?? 0) > 0).length, ps.length) },
+  { label: "fewest squares to fill at any point", cell: (ps) => range(ps.map((p) => p.scan.min)) },
   { label: "… ≤ 3 beyond singles", cell: (ps) => share(ps.filter((p) => p.beyond <= 3).length, ps.length) },
   { label: "uses pairs", cell: (ps) => share(ps.filter((p) => uses(p, PAIRS)).length, ps.length) },
   { label: "exactly one tier-3+ step", cell: (ps) => share(ps.filter((p) => p.tiers[3]! + p.advanced === 1).length, ps.length) },
@@ -108,6 +116,10 @@ const CLASSIC: Row<SudokuProfile>[] = [
 
 const KILLER: Row<SudokuProfile>[] = [
   { label: "45-rule steps", cell: (ps) => range(ps.map((p) => p.innies.single + p.innies.multi)) },
+  {
+    label: "first 45 before 11 squares filled",
+    cell: (ps) => share(ps.filter((p) => p.firstWall !== null && 81 - p.givens - p.firstWall <= 10).length, ps.length),
+  },
   { label: "… boards with ≤ 2", cell: (ps) => share(ps.filter((p) => p.innies.single + p.innies.multi <= 2).length, ps.length) },
   { label: "… multi-house", cell: (ps) => share(ps.filter((p) => p.innies.multi > 0).length, ps.length) },
   { label: "cages", cell: (ps) => range(ps.map((p) => p.cages!.count)) },
@@ -130,6 +142,7 @@ const QUEENS: Row<QueensProfile>[] = [
   { label: "size", cell: (ps) => hist(ps.map((p) => p.n)) },
   { label: "… ≤ 2 tier-3 steps", cell: (ps) => share(ps.filter((p) => p.tiers[3]! <= 2).length, ps.length) },
   { label: "tier-5 steps", cell: (ps) => range(ps.map((p) => p.tiers[5]!)) },
+  { label: "tier-4 steps", cell: (ps) => range(ps.map((p) => p.tiers[4]!)) },
   { label: "regions of ≤ 3 cells", cell: (ps) => range(ps.map((p) => p.regions.tiny)) },
   { label: "steps", cell: (ps) => range(ps.map((p) => p.steps)) },
 ];

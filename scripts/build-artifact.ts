@@ -41,6 +41,8 @@ writeFileSync(join(out, "nonet.html"), page + "\n");
 
 cpSync(join(build, "assets"), join(out, "assets"), { recursive: true });
 cpSync(join(build, "packs"), join(out, "packs"), { recursive: true });
+// The app doesn't read the v2 packs yet; they stay out of the artifact until it does.
+rmSync(join(out, "packs", "v2"), { recursive: true, force: true });
 rmSync(build, { recursive: true, force: true });
 
 const files = [

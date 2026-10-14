@@ -102,6 +102,35 @@ Changes from the first proposal:
   and a count of 3 are the same idea, and what separates boards is how often nothing on the board
   tells you anything on its own.
 
+## The v2 packs
+
+`npm run gen -- --mode all --max 100` built all 12 packs in 12 minutes on 8 workers (about 97 CPU
+minutes). Every band has 100 boards: 25 breathers, 58 standard and 17 stretches, every board fitting
+the approved rules. Killer Expert took 10.4 of the 12 minutes; no other band took more than 33 seconds.
+Packs are 26–59 KB each. Against the v1 packs (`npm run stats`):
+
+| Band | v1 | v2 |
+|---|---|---|
+| Classic Easy | 36–37 givens; early options 5.6–25.3 (median 14.2); 1 of 60 needs a naked single | 27–48 givens; early options 10–22 (14.6); none needs a naked single; at least two squares to fill at every point |
+| Classic Medium | first wall at 18–48 empty squares (median 38); 1–7 steps past singles; pairs on 13 of 60 | 18–34 (median 27); 1–5 steps; pairs on 6 of 100, all stretches |
+| Classic Hard | one tier-3 step on 31 of 60 | one tier-3 step on 25 of 100 (the breathers); median 2 |
+| Classic Expert | 3+ tier-4+ steps on 30 of 60; AIC the hardest step on 22 | 3+ on all 100; AIC the hardest on 40, the cap |
+| Killer Easy | 0–2 one-cell cages | 1–6 (median 4) |
+| Killer Medium | the 45 rule 1–18 times (at most twice on 30 of 60); first 45 before 11 squares filled on 57 of 60 | 1–4 times (median 2); first 45 before 11 squares filled on all 100 |
+| Killer Hard | stuck at 1–13 points | 3–11 (median 6); the 45 rule 4–17 times |
+| Killer Expert | 29 boards; tier-4+ steps 1–5 (median 1), 3+ on 3 | 100 boards; 2–19 (median 3), 3+ on 75 |
+| Queens Medium | all 8×8; stuck 1–4 times | 7×7 or 8×8; stuck once or twice |
+| Queens Hard | all tier 4; stuck 1–4 times | stuck 3–5 times; 80 of 100 are tier 3 |
+| Queens Expert | 1–25 contradictions | 2–8 (median 3) |
+
+Three things the packs show that the approved rules leave open:
+
+- Killer Expert's hardest step is a chain on 68 of 100 boards (AIC 52, XY-chain 16). The 40% cap was
+  approved for Classic Expert only. A cap here would need a larger pool, at about 32 worker-seconds per
+  Killer Expert board in this run.
+- Some Classic Easy breathers have up to 48 givens: on some grids, 18+ early options takes that many.
+- Killer Hard boards have up to five 6-cell cages; the 6-cell limit was approved for Expert only.
+
 ## Classic
 
 A full logical solve takes 0.1–4 ms on v1 boards and an exact uniqueness check 0.04 ms.
@@ -334,18 +363,16 @@ and 0.24 s (10×10, six to eight). The cap of 8 contradictions removes 14% of 9�
 - Twins under rotation or reflection: none in the v1 packs, and none among 1,000 generated 6×6 and
   1,000 7×7 Easy boards. The pack builder will still drop them; the check costs microseconds.
 
-## Speed and phones
+## Speed
 
-Computed from the costs above: 100 Killer Expert boards take about 20 minutes on one core, and 100
-boards for each of the other 11 bands 3 to 5 minutes together. With a pool of 1.5× (next section) and
-8 workers, the whole set takes about 5 minutes.
+The full build (12 bands × 100 boards, pools of 150) took 12 minutes on 8 workers, 10.4 of them
+for Killer Expert: about 5,000 worker-seconds for 157 seeds, or 32 s a seed, against about 15 s a
+board in single-process benches. Other jobs shared the machine during the run (load average about 7
+before it started).
 
-For on-device generation, assume a phone runs this code about 4× slower than one core here
-(Lighthouse's default mobile CPU slowdown). Nobody has timed these generators on a phone yet. Under
-that estimate, every band except Killer Expert takes under 2.5 s a board, and Killer Expert takes
-about 45 s per kept board, so a phone would make those ahead of time in a Web Worker. The generators stay pure and
-synchronous per board and take all randomness from `rng.ts`; Phase 3 records the seed and a generator
-version on every board.
+Shawn decided that boards are generated on a computer ahead of time and shipped in packs, so phone
+speed doesn't constrain the generators. They stay pure, synchronous per board and seeded through `rng.ts`,
+and every pack entry records its seed and generator version, so any board can be made again.
 
 Changes that cut generation time: the Killer cage memo (2.4–2.9× per solve); skipping the auto-note
 scan inside generators (6–7× per Killer profile); and limiting a check to the band's techniques,

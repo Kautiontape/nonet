@@ -69,8 +69,8 @@ never re-teaches a cage sum you can already see.
 ## M9 — Puzzle generator v2 ⏳
 Bands that say what a player meets, with breather / standard / stretch boards on purpose
 (`docs/generator-research.md`). Done: board profile, permanent content ids, bands as data, Classic,
-Killer and Queens generators, the v2 pack builder (`public/packs/v2/`), `npm run stats`, and Killer
-solves 2.4–2.9× faster. *To do (app side): read v2 packs, convert saved progress to content ids, a
+Killer and Queens generators, the v2 pack builder, 100 boards for each of the 12 bands in
+`public/packs/v2/`, `npm run stats`, and Killer solves 2.4–2.9× faster. *To do (app side): read v2 packs, convert saved progress to content ids, a
 picker (unseen, then skipped, then replays), Skip, and a level counter per band.*
 
 ## Next
