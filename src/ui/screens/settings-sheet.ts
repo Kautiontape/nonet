@@ -1,8 +1,9 @@
-/** Settings as a bottom sheet with toggles and a segmented effects control. */
+/** Settings as a bottom sheet with toggles, a segmented effects control and a save backup. */
 import { h, svgIcon } from "../dom";
 import { ICONS } from "../icons";
 import { settings, updateSettings, type EffectsLevel, type Settings } from "../settings";
 import { sound } from "../sound";
+import { backupSolved, makeBackup, parseBackup, restoreBackup, todayKey, type Backup } from "../store";
 
 type BoolKey = { [K in keyof Settings]: Settings[K] extends boolean ? K : never }[keyof Settings];
 
@@ -74,6 +75,7 @@ export function openSettings(): void {
       rows.push(h("label", { class: "set-row" }, h("div", null, h("b", null, r.label), r.hint ? h("small", null, r.hint) : null), h("span", { class: "switch" }, input, h("i"))));
     }
   }
+  rows.push(h("h3", null, "Backup"), backupRow());
   const close = () => {
     sound.ui("close");
     overlay.classList.add("closing");
@@ -89,4 +91,102 @@ export function openSettings(): void {
     h("div", { class: "settings-list" }, ...rows),
   );
   document.body.append(overlay);
+}
+
+/**
+ * Save everything to a file, or restore from one. A restore replaces what's here and loads the
+ * page again, so every screen starts from the backup. Toasts sit under this sheet: messages go
+ * in the row itself.
+ */
+function backupRow(): HTMLElement {
+  const status = h("small", { class: "backup-status", role: "status", "data-testid": "backup-status" });
+  const file = h("input", { type: "file", hidden: true, "data-testid": "restore-file" }) as HTMLInputElement;
+  const actions = h(
+    "div",
+    { class: "backup-actions" },
+    h("button", { class: "btn", type: "button", "data-testid": "backup-save", onclick: () => void saveBackup(status) }, svgIcon(ICONS.download), "Save backup"),
+    h("button", { class: "btn", type: "button", "data-testid": "backup-restore", onclick: () => file.click() }, svgIcon(ICONS.upload), "Restore…"),
+  );
+  const confirm = h("div", { class: "backup-confirm", hidden: true });
+  const ask = (b: Backup) => {
+    const when = new Date(b.exported);
+    const solved = backupSolved(b);
+    confirm.replaceChildren(
+      h(
+        "p",
+        null,
+        `Replace everything here with the backup${Number.isNaN(when.getTime()) ? "" : ` from ${when.toLocaleDateString(undefined, { dateStyle: "medium" })}`}`,
+        ` (${solved} solved)? Scores, settings and games in progress are all swapped for it.`,
+      ),
+      h(
+        "div",
+        { class: "backup-actions" },
+        h("button", { class: "btn", type: "button", onclick: () => show(false) }, "Cancel"),
+        h(
+          "button",
+          {
+            class: "btn primary",
+            type: "button",
+            "data-testid": "restore-confirm",
+            onclick: () => {
+              if (!restoreBackup(b)) return show(false, "This browser wouldn't let Nonet save. Nothing was restored.");
+              // A plain load of the page: a ?play= link would start a game and save over the backup.
+              location.assign(`${location.pathname}?restored`);
+            },
+          },
+          "Replace",
+        ),
+      ),
+    );
+    show(true);
+  };
+  const show = (asking: boolean, message = "") => {
+    actions.hidden = asking;
+    confirm.hidden = !asking;
+    status.textContent = message;
+  };
+  file.addEventListener("change", async () => {
+    const picked = file.files?.[0];
+    file.value = ""; // so picking the same file again still fires
+    if (!picked) return;
+    const b = parseBackup(await picked.text());
+    if (b) ask(b);
+    else show(false, "That file isn't a Nonet backup this version can read.");
+  });
+  return h(
+    "div",
+    { class: "set-row backup" },
+    h(
+      "div",
+      null,
+      h("b", null, "Your progress"),
+      h("small", null, "Scores, settings and games in progress live in this browser only. Save a backup file to keep them safe or move them to another device."),
+    ),
+    actions,
+    confirm,
+    status,
+    file,
+  );
+}
+
+/** The share sheet on a phone (save to Files or Drive, or send it on), a download elsewhere. */
+async function saveBackup(status: HTMLElement): Promise<void> {
+  const name = `nonet-backup-${todayKey()}.json`;
+  const file = new File([JSON.stringify(makeBackup())], name, { type: "application/json" });
+  if (matchMedia("(pointer: coarse)").matches && navigator.canShare?.({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file] });
+      return;
+    } catch (e) {
+      if ((e as Error).name === "AbortError") return;
+      /* sharing refused: download it instead */
+    }
+  }
+  const url = URL.createObjectURL(file);
+  const a = h("a", { href: url, download: name, hidden: true });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  status.textContent = `Saved ${name}.`;
 }

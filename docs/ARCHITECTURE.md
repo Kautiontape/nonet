@@ -121,6 +121,10 @@ tests/
 
 - Screens are plain objects `{ el, destroy() }` mounted by `App`. `App.play` destroys the current
   screen *before* building the next so a stale autosave can't overwrite a new game.
+- Everything saved goes through `store.ts` (`localStorage`, keys prefixed `cagecoach.`). A backup
+  is every prefixed key as JSON under an `{ app, version, exported }` header. Restoring replaces
+  them all, then turns `save`/`remove` into no-ops and loads the page again (plain path, never
+  `?play=`), so an open game's autosave or the cached settings can't write over the backup.
 - Game models emit events (`place`, `complete`, `solved`, …); play screens translate events into
   board animations, particles, callouts, sound and haptics. Models never touch the DOM.
 - The sudoku board is DOM cells (crisp text, accessible `gridcell`s) under an SVG overlay

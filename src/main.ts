@@ -66,7 +66,13 @@ if (import.meta.env.PROD && import.meta.env.VITE_TARGET !== "artifact" && "servi
   navigator.serviceWorker.register("./sw.js").catch(() => {});
 
 // ?play=killer-medium jumps straight into a game (handy for sharing and for tests).
-const play = new URLSearchParams(location.search).get("play");
+const params = new URLSearchParams(location.search);
+const play = params.get("play");
+// Settings loads the page with ?restored after restoring a backup.
+if (params.has("restored")) {
+  history.replaceState(null, "", location.pathname);
+  toast("Backup restored.", "good");
+}
 const [mode, difficulty] = (play ?? "").split("-") as [Mode, Difficulty];
 if (["classic", "killer", "queens"].includes(mode) && DIFFICULTIES.includes(difficulty)) void app.play(mode, difficulty);
 else void app.home();

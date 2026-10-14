@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { readFileSync } from "node:fs";
 import { applyNextHint, cellLocator, digitKey, landed, readBoard, solveWithHints } from "./helpers";
 
 const STYLES = ["warp", "rain", "ripple", "deal", "vortex", "shards", "hologram", "nova"];
@@ -742,4 +743,51 @@ test("killer: Auto notes is a layer — dim digits you can strike, under your ow
   await readBoard(page);
   await expect(page.getByTestId("tool-auto")).toHaveAttribute("aria-pressed", "true");
   expect(await page.locator(".notes i.auto").count()).toBeGreaterThan(0);
+});
+
+test("backup: save a file, then restore it from the game menu over newer progress", async ({ page }, testInfo) => {
+  // Pin the download path: a touch device with file sharing would open the share sheet instead.
+  await page.addInitScript(() => Object.defineProperty(Navigator.prototype, "canShare", { value: undefined }));
+  await page.goto("/?play=classic-easy");
+  await applyNextHint(page);
+  await page.goto("/");
+  await page.evaluate(() =>
+    localStorage.setItem(
+      "cagecoach.progress",
+      JSON.stringify({ solved: { "classic-easy": ["a", "b", "c"] }, best: {}, hinted: {}, total: 3, streak: { last: "", days: 0 } }),
+    ),
+  );
+  await page.reload();
+  await expect(page.getByTestId("play-classic-easy")).toContainText("3 solved");
+
+  await page.getByTestId("open-settings").click();
+  const settingsSheet = page.getByTestId("settings");
+  const [download] = await Promise.all([page.waitForEvent("download"), settingsSheet.getByTestId("backup-save").click()]);
+  await settingsSheet.locator(".set-row.backup").screenshot({ path: "test-results/screens/backup.png" });
+  expect(download.suggestedFilename()).toMatch(/^nonet-backup-\d{4}-\d\d-\d\d\.json$/);
+  const file = testInfo.outputPath("backup.json");
+  await download.saveAs(file);
+  const backup = JSON.parse(readFileSync(file, "utf8"));
+  expect(backup).toMatchObject({ app: "nonet", version: 1, data: { progress: { total: 3 } } });
+  expect(backup.data["game.classic"]).toBeTruthy();
+
+  // Start over, then restore mid-game: the open game must not save over the backup on the way out.
+  await page.evaluate(() => localStorage.clear());
+  await page.goto("/?play=classic-easy");
+  await landed(page);
+  await page.getByRole("button", { name: "Menu", exact: true }).click();
+  await page.getByRole("button", { name: "Settings" }).click();
+  await settingsSheet.getByTestId("restore-file").setInputFiles({ name: "notes.json", mimeType: "application/json", buffer: Buffer.from("{}") });
+  await expect(settingsSheet.getByTestId("backup-status")).toContainText("isn't a Nonet backup");
+  await settingsSheet.getByTestId("restore-file").setInputFiles(file);
+  await expect(settingsSheet.locator(".backup-confirm")).toContainText("3 solved");
+  await settingsSheet.locator(".set-row.backup").screenshot({ path: "test-results/screens/backup-confirm.png" });
+  await settingsSheet.getByTestId("restore-confirm").click();
+
+  await expect(page.getByTestId("toast")).toContainText("Backup restored");
+  await expect(page).toHaveURL(/\/$/);
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("cagecoach.game.classic")!))).toEqual(backup.data["game.classic"]);
+  await expect(page.getByTestId("play-classic-easy")).toContainText("3 solved");
+  await page.getByTestId("resume-classic").click();
+  await expect(page.locator(".stats")).toContainText("Hints 1");
 });

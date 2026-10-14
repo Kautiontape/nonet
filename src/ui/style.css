@@ -2077,6 +2077,39 @@ body:has(.play.hint-open) .toasts {
   background: #fff;
 }
 
+.set-row.backup {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+}
+
+.backup-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.backup-actions .btn {
+  flex: 1;
+  padding: 0 12px;
+}
+
+.backup-actions[hidden],
+.backup-confirm[hidden],
+.backup-status:empty {
+  display: none;
+}
+
+.backup-confirm p {
+  margin: 0 0 12px;
+  font-size: 14px;
+  color: var(--ink-dim);
+}
+
+.set-row .backup-status {
+  margin: 0;
+  color: var(--ink-dim);
+}
+
 .segmented {
   display: flex;
   flex: none;

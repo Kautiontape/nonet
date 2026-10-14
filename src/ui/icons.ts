@@ -26,6 +26,8 @@ export const ICONS = {
   next: svg('<path d="M9 5l7 7-7 7"/>'),
   trophy: svg('<path d="M8 4h8v5a4 4 0 0 1-8 0z"/><path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4"/><path d="M12 13v4M9 20h6M10 17h4"/>'),
   restart: svg('<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>'),
+  download: svg('<path d="M12 4v11"/><path d="M7 10l5 5 5-5"/><path d="M5 20h14"/>'),
+  upload: svg('<path d="M12 15V4"/><path d="M7 9l5-5 5 5"/><path d="M5 20h14"/>'),
 } as const;
 
 export type IconName = keyof typeof ICONS;
