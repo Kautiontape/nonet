@@ -71,3 +71,33 @@ export function contentId(p: Puzzle | QueensPuzzle): string {
   const mode = isQueens(p) ? "queens" : puzzleKind(p);
   return PREFIX[mode] + cyrb53(contentPreimage(p)).toString(36).padStart(11, "0");
 }
+
+/**
+ * The same board up to rotation and reflection gets the same key: the smallest content id among
+ * its eight symmetric copies. Queens pack builds use it to drop twins; it's never a board's id.
+ */
+export function queensSymmetryKey(p: Pick<QueensPuzzle, "n" | "regions">): string {
+  const { n, regions } = p;
+  const maps: ((r: number, c: number) => [number, number])[] = [
+    (r, c) => [r, c],
+    (r, c) => [c, n - 1 - r],
+    (r, c) => [n - 1 - r, n - 1 - c],
+    (r, c) => [n - 1 - c, r],
+    (r, c) => [r, n - 1 - c],
+    (r, c) => [n - 1 - r, c],
+    (r, c) => [c, r],
+    (r, c) => [n - 1 - c, n - 1 - r],
+  ];
+  let best = "";
+  for (const f of maps) {
+    const g = new Array<number>(n * n);
+    for (let r = 0; r < n; r++)
+      for (let c = 0; c < n; c++) {
+        const [rr, cc] = f(r, c);
+        g[rr * n + cc] = regions[r * n + c]!;
+      }
+    const id = contentId({ id: "", n, regions: g, solution: [] });
+    if (!best || id < best) best = id;
+  }
+  return best;
+}

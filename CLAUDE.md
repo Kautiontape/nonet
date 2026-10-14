@@ -11,8 +11,11 @@ feel. Read `docs/SPEC.md` (what), `docs/ARCHITECTURE.md` (how), `docs/MILESTONES
 - `npm run typecheck` — `tsc --noEmit`.
 - `npm run check` — typecheck + unit tests + build. Must be green before work is "done".
 - `npm run dev` — Vite dev server. `?play=classic-easy` (or `killer-…`, `queens-…`) opens a game.
-- `npm run gen -- --mode all --count 60` — regenerate `public/packs/*.json`, then `npm run examples`
-  to refresh the Learn screen's worked examples (`public/packs/examples.json`).
+- `npm run gen -- --mode all --max 100` — build the v2 packs in `public/packs/v2/` (append-only; keeps
+  entries that still fit). The v1 packs (`public/packs/*.json`) are frozen; the app reads them until it
+  switches to v2. `npm run examples` refreshes the Learn screen's worked examples from v1.
+- `npm run stats` — profile every pack, v1 beside v2. `npx tsx scripts/gen-bench.ts` — generator cost
+  and sub-target mix per band.
 - `npm run build:artifact` — a copy for hosting as a single page (no service worker), in `dist-artifact/`.
 - `npx tsx scripts/audio-check.ts` — offline render + level checks for the synth (needs Chromium).
 
@@ -38,7 +41,9 @@ feel. Read `docs/SPEC.md` (what), `docs/ARCHITECTURE.md` (how), `docs/MILESTONES
 - Mobile-first: design and test at 412×915-ish. Tap targets ≥ 44px.
 
 ## Puzzle JSON
-Pack formats are in `src/engine/pack.ts` (classic/killer) and `src/engine/queens/pack.ts`.
+Pack formats are in `src/engine/pack.ts` (classic/killer) and `src/engine/queens/pack.ts`; v2 entries
+add a content id, seed, generator version, sub-target and profile summary (`src/engine/pack-v2.ts`).
+Band rules live in `src/engine/bands.ts`, written against `src/engine/profile.ts`.
 Engine `Puzzle`: `{ id, kind, cages, givens?, solution, meta? }` — `solution` is 81 digits,
 `givens` keys are CellIds.
 

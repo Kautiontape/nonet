@@ -26,10 +26,14 @@ src/
       singles.ts intersections.ts subsets.ts killer.ts innies.ts advanced.ts (+ fish, wings, …)
     region.ts             # 45-rule analysis (innies/outies) — shared by technique + calculator
     calc.ts               # calculator tape engine (UI not built yet)
-    grade.ts              # difficulty from a solve path
+    grade.ts              # difficulty from a solve path (v1 grading)
+    profile.ts            # board profile: steps per tier and technique, walls, scan options, cage stats
+    bands.ts              # bands as data: every board's rule and breather / standard / stretch targets
+    content-id.ts         # contentId (permanent board names) and the Queens symmetry key
     generate.ts           # solved grids, symmetric digging, cage partition, uniqueness repair
-    puzzles.ts            # difficulty-targeted classic + killer generation
-    pack.ts               # compact pack JSON
+    gen/                  # v2 generators: classic, killer, queens, the attempt loop, pack selection
+    puzzles.ts            # v1 difficulty-targeted classic + killer generation (kept for tests)
+    pack.ts pack-v2.ts    # compact pack JSON (v1) and v2 entries (content id, seed, sub-target, profile)
     catalog.ts            # Learn-screen technique guide (+ catalog-advanced.ts)
     hints/                # format helpers, per-technique templates, sudokuHint() ladder
     hint-types.ts         # mode-independent ladder + TechniqueInfo types
@@ -54,10 +58,13 @@ src/
     palette.ts settings.ts store.ts haptics.ts icons.ts messages.ts dom.ts style.css
   main.ts
 public/
-  packs/                  # generated puzzle packs
+  packs/                  # v1 puzzle packs (frozen: the app and cached clients read them)
+    v2/                   # v2 packs from the v2 generators
   sw.js manifest.webmanifest icons/
 scripts/
-  generate-pack.ts        # parallel pack generator (child processes)
+  generate-pack.ts        # v2 pack builder: worker processes, pool and select, append-only
+  pack-stats.ts           # profile report per band, v1 beside v2 (npm run stats)
+  gen-bench.ts            # generator cost and sub-target mix per band
   queens-stats.ts         # queens generator report
   audio-check.ts          # renders the synth offline in Chromium and checks levels
 tests/
@@ -107,16 +114,39 @@ tests/
   the layer) goes in as `HintInput.visible`, used only to mark a route step `already` shown.
 
 ### Generation
-- Classic: random solved grid → dig 180°-symmetric pairs while the exact solver says unique →
-  logical solve → keep when the grade matches the target difficulty.
-- Killer: random solved grid → grow cages (no repeated digit; size mix per difficulty) →
-  logical solve with no uniqueness-assuming techniques. A complete solve *proves* uniqueness.
-  If the solver gets stuck, split the stuck cage with the most open candidates and retry. This is
-  far faster than exact counting on loose layouts (which can take millions of nodes), and it
-  guarantees every killer puzzle is hintable end to end. Single-cell cages are capped per
-  difficulty.
-- Queens: random valid queen placement → grow regions from the queens with per-difficulty region
-  styles → exact uniqueness repair → logical grade.
+Details, measurements and the methods that lost are in `docs/generator-research.md`.
+
+- **Profile** (`profile.ts`): replays the hint engine's easiest-first solve and measures what it
+  asks of a player: steps per tier and per technique, steps past the basics, walls (stretches where
+  the basics find nothing) and where the first one falls, placements scanning offers at each state,
+  45-rule steps and cage stats for Killer.
+- **Bands** (`bands.ts`): each band has a rule every board meets and three sub-targets, all written
+  against the profile. Each seed draws its sub-target first (about 1 in 4 a breather, 1 in 6 a
+  stretch, the rest standard), so variety inside a band is on purpose.
+- **Generators** (`gen/`): one board per (mode, band, seed), aimed at the seed's sub-target. Every
+  attempt draws its randomness from (generator version, mode, band, seed, attempt). The first
+  attempt that fits the aim wins; otherwise the first that fits the band at all.
+  - Classic Easy: strip a solved grid while cross-hatching alone still solves it, no state is down to
+    one square, and the early options stay above the sub-target's floor.
+  - Classic Medium and Hard: dig a minimal unique board with the exact solver, put mirrored pairs back
+    where the band's techniques stall (a given never invalidates a deduction) until it fits the
+    target, then strip again under the same check. Classic Expert: dig and keep boards whose solve
+    has enough tier-4+ steps.
+  - Killer: lay out cages, split stalled cages until the band's techniques solve it (one-cell cages
+    allowed here), then merge neighbouring cages while it stays solvable, toward the target. A
+    complete logical solve with no uniqueness-assuming technique proves uniqueness. Killer solves
+    reuse each cage's combination check while its cells don't change (`techniques/killer.ts`).
+  - Queens: plant queens, grow regions, repair uniqueness, keep boards whose solve fits the band.
+  - Checks never use uniqueness-assuming techniques; every board ends with the hint engine's full
+    solve against the band rules, and Classic boards with an exact uniqueness check.
+- **Packs** (`scripts/generate-pack.ts`): keeps the existing v2 entries that still fit, makes a pool
+  of 1.5× the pack over seeds 1, 2, 3… in worker processes, and picks the pack (`gen/select.ts`):
+  sub-target quotas, Classic Expert's cap on any one hardest technique, no duplicates (content ids;
+  Queens up to rotation and reflection). The pool is the first boards in seed order, so the same
+  arguments make the same pack. Each entry carries its content id, seed, generator version,
+  sub-target and a profile summary (`pack-v2.ts`).
+- v1 packs (`public/packs/*.json`) came from `puzzles.ts` and `queens/generate.ts`'s
+  `generateQueensFor`; they stay as they are while the app reads them.
 
 ## UI
 

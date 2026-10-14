@@ -66,6 +66,13 @@ Auto notes is a layer of dim digits under your own (strike, unstrike, erase), a 
 follows you between levels; with it on, hints take what it shows as known, so a killer route
 never re-teaches a cage sum you can already see.
 
+## M9 — Puzzle generator v2 ⏳
+Bands that say what a player meets, with breather / standard / stretch boards on purpose
+(`docs/generator-research.md`). Done: board profile, permanent content ids, bands as data, Classic,
+Killer and Queens generators, the v2 pack builder (`public/packs/v2/`), `npm run stats`, and Killer
+solves 2.4–2.9× faster. *To do (app side): read v2 packs, convert saved progress to content ids, a
+picker (unseen, then skipped, then replays), Skip, and a level counter per band.*
+
 ## Next
 - Calculator tape UI and multi-house lens (M4).
 - Technique mastery tracking by classifying the player's own placements.

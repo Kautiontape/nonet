@@ -25,8 +25,11 @@ region; no two queens touch, not even diagonally (they *may* share a long diagon
 LinkedIn "Queens" puzzle, not classic 8-queens).
 
 ### Difficulty
-Easy / Medium / Hard / Expert per mode, graded by the hardest technique the logical solver needs
-(see §4). Queens board size grows with difficulty (Easy 6–7, Medium 8, Hard 9, Expert 9–10).
+Easy / Medium / Hard / Expert per mode. Each band describes the whole solve: Easy is for players
+who don't use pencil marks; Medium adds a few advanced moves later in the solve; Hard allows them
+without limit; Expert guarantees frequent advanced steps. Inside a band, about 1 in 4 boards is a
+breather (the gentle end) and about 1 in 6 a stretch (the top), on purpose. The rules per band are
+in §4.
 
 ---
 
@@ -169,12 +172,26 @@ marks anything (all three modes).
 
 ## 4. Puzzles
 
-- Generated offline into JSON packs (`npm run gen`), shipped with the app; deterministic per seed.
+- Generated offline on a computer into JSON packs (`npm run gen`), shipped with the app;
+  deterministic per seed. Boards are never generated on the phone.
 - Every pack puzzle is **solvable start to finish by the hint engine's techniques**, so a hint is
   always available.
-- Grading: hardest tier needed. Classic: tier 1 easy (singles), 2 medium, 3 hard, 4–5 expert.
-  Killer: ≤ tier 2 easy, single-house 45s medium, multi-house 45s / tier-3 techniques hard,
-  tier 4–5 expert. Queens: tier 1–2 easy … tier 5 (contradiction) expert.
+- Bands (v2 packs, `src/engine/bands.ts`; measured in `docs/generator-research.md`):
+  - **Classic.** Easy: cross-hatching only (never a naked single), never stuck, always at least two
+    squares to fill. Medium: one or two late walls broken by pointing or claiming; pairs only in
+    stretches. Hard: tier-3 techniques (X-Wing, Skyscraper, XY-Wing, triples…) as often as needed,
+    never tier 4. Expert: 3+ tier-4+ steps; breathers have no chains, and no one technique is the
+    hardest step on more than about 40% of the pack.
+  - **Killer.** Easy: cage arithmetic and basics, with free one-cell cages. Medium: opens with a
+    45 over one row, column or box, and needs nothing harder; breathers get one or two one-cell
+    cages. Hard: keeps needing 45s (stuck at 3+ points), at least one over several houses or a
+    tier-3 technique; no one-cell cages. Expert: 2+ tier-4+ steps; no one-cell cages, at most two
+    6-cell cages.
+  - **Queens.** Easy: basics only, 6×6 or 7×7. Medium: touch and counting steps, stuck once or
+    twice, 7×7 or 8×8. Hard: the same steps, stuck at 3+ points, 8×8 or 9×9. Expert: contradiction
+    two to eight times, 9×9 or 10×10.
+- The app reads the v1 packs (`public/packs/*.json`, graded by the hardest tier needed) until it
+  switches to v2 (`public/packs/v2/`).
 - Next puzzle = first unsolved in pack order; packs cycle when exhausted.
 
 ---
