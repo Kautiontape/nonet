@@ -74,8 +74,10 @@ never re-teaches a cage sum you can already see.
 Bands that say what a player meets, with breather / standard / stretch boards on purpose
 (`docs/generator-research.md`). Done: board profile, permanent content ids, bands as data, Classic,
 Killer and Queens generators, the v2 pack builder, 100 boards for each of the 12 bands in
-`public/packs/v2/`, `npm run stats`, and Killer solves 2.4–2.9× faster. *To do (app side): read v2 packs, convert saved progress to content ids, a
-picker (unseen, then skipped, then replays), Skip, and a level counter per band.*
+`public/packs/v2/`, `npm run stats`, and Killer solves 2.4–2.9× faster. The app reads the v2 packs and
+picks a random unsolved board (New puzzle moves on; once all are solved, random replays); the level
+number counts every solve per mode and difficulty, synced, plus v1 solves. *To do: convert saved v1
+ids to content ids once a format version stops 0.3 phones syncing them back.*
 
 ## Next
 - Calculator tape UI and multi-house lens (M4).

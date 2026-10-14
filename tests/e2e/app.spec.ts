@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { readFileSync } from "node:fs";
-import { applyNextHint, cellLocator, digitKey, landed, readBoard, solveWithHints } from "./helpers";
+import { applyNextHint, cellLocator, digitKey, landed, packOf, playUrl, readBoard, solveWithHints } from "./helpers";
 
 const STYLES = ["warp", "rain", "ripple", "deal", "vortex", "shards", "hologram", "nova"];
 
@@ -15,7 +15,7 @@ test("home shows the three modes and starts a game", async ({ page }) => {
 });
 
 test("classic: placing, a teaching mistake, and undo", async ({ page }) => {
-  await page.goto("/?play=classic-easy");
+  await page.goto(playUrl("classic-easy"));
   await expect(page.getByRole("gridcell")).toHaveCount(81);
   const board = await readBoard(page);
   // Find an empty cell and a digit already given in its row: placing it must be explained.
@@ -33,7 +33,7 @@ test("classic: placing, a teaching mistake, and undo", async ({ page }) => {
 });
 
 test("classic: notes mode pencils candidates; holding a digit lights it up and places nothing", async ({ page }) => {
-  await page.goto("/?play=classic-easy");
+  await page.goto(playUrl("classic-easy"));
   const board = await readBoard(page);
   const empty = board.find((x) => !x.value)!;
   await cellLocator(page, empty.cell).click();
@@ -51,7 +51,7 @@ test("classic: notes mode pencils candidates; holding a digit lights it up and p
 });
 
 test("classic: a held digit is the active digit, so a tap on the selected square enters it, not the digit before", async ({ page }) => {
-  await page.goto("/?play=classic-easy");
+  await page.goto(playUrl("classic-easy"));
   const board = await readBoard(page);
   const [a, b, c] = board.filter((x) => !x.value);
   await cellLocator(page, a!.cell).click();
@@ -72,7 +72,7 @@ test("classic: a held digit is the active digit, so a tap on the selected square
 });
 
 test("hold the Notes tool to hide every note; hold again, or go to pencil mode, to show them", async ({ page }) => {
-  await page.goto("/?play=classic-easy");
+  await page.goto(playUrl("classic-easy"));
   const board = await readBoard(page);
   const empty = board.find((x) => !x.value)!;
   await cellLocator(page, empty.cell).click();
@@ -98,7 +98,7 @@ test("hold the Notes tool to hide every note; hold again, or go to pencil mode, 
 });
 
 test("classic: holding Shift turns notes mode on until it's let go", async ({ page }) => {
-  await page.goto("/?play=classic-easy");
+  await page.goto(playUrl("classic-easy"));
   const empty = (await readBoard(page)).find((x) => !x.value)!;
   const cell = cellLocator(page, empty.cell);
   await cell.click();
@@ -120,7 +120,7 @@ test("classic: holding Shift turns notes mode on until it's let go", async ({ pa
 });
 
 test("classic: dragging across empty cells pencils a digit into all of them", async ({ page }) => {
-  await page.goto("/?play=classic-easy");
+  await page.goto(playUrl("classic-easy"));
   const board = await readBoard(page);
   const row = board.filter((x) => x.r === 4);
   const run = row.filter((x) => !x.value).slice(0, 3);
@@ -146,7 +146,7 @@ test("classic: dragging across empty cells pencils a digit into all of them", as
 });
 
 test("classic: a drag that starts on the selected cell only selects; a tap there repeats the digit", async ({ page }) => {
-  await page.goto("/?play=classic-easy");
+  await page.goto(playUrl("classic-easy"));
   const run = (await readBoard(page)).filter((x) => x.r === 4 && !x.value).slice(0, 3);
   test.skip(run.length < 2, "row 5 has fewer than two empty cells");
   const first = cellLocator(page, run[0]!.cell);
@@ -169,7 +169,7 @@ test("classic: a drag that starts on the selected cell only selects; a tap there
 });
 
 test("classic: holding an empty square opens the number wheel; a flick enters the digit", async ({ page }) => {
-  await page.goto("/?play=classic-easy");
+  await page.goto(playUrl("classic-easy"));
   const board = await readBoard(page);
   const wheel = page.getByTestId("radial");
   // A flick straight up lands on 1 (1 sits at 12 o'clock).
@@ -199,7 +199,7 @@ test("classic: holding an empty square opens the number wheel; a flick enters th
 });
 
 test("classic: a second Shift-drag adds a cluster without unselecting the first", async ({ page }) => {
-  await page.goto("/?play=classic-easy");
+  await page.goto(playUrl("classic-easy"));
   const board = await readBoard(page);
   // Two side-by-side empty cells in two separated rows: each drag covers exactly its own pair.
   const adjPair = (rows: number[]): readonly [number, number] | null => {
@@ -236,7 +236,7 @@ test("classic: a second Shift-drag adds a cluster without unselecting the first"
 });
 
 test("classic: Shift- or Ctrl-click adds cells to the selection", async ({ page }) => {
-  await page.goto("/?play=classic-easy");
+  await page.goto(playUrl("classic-easy"));
   const empties = (await readBoard(page)).filter((x) => !x.value).slice(0, 3);
   await cellLocator(page, empties[0]!.cell).click();
   await cellLocator(page, empties[1]!.cell).click({ modifiers: ["Shift"] });
@@ -256,7 +256,7 @@ test("Backspace erases in the game and never navigates the browser back", async 
     page.evaluate(() => !document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Backspace", bubbles: true, cancelable: true })));
   await page.goto("/");
   expect(await backspaceCancelled()).toBe(true);
-  await page.goto("/?play=classic-easy");
+  await page.goto(playUrl("classic-easy"));
   const empty = (await readBoard(page)).find((x) => !x.value)!;
   await cellLocator(page, empty.cell).click();
   await page.keyboard.press("5");
@@ -268,7 +268,7 @@ test("Backspace erases in the game and never navigates the browser back", async 
 });
 
 test("desktop keys: Enter climbs the hint, Esc steps back, browser combos and held keys are left alone", async ({ page }) => {
-  await page.goto("/?play=classic-easy");
+  await page.goto(playUrl("classic-easy"));
   const board = await readBoard(page);
   const key = (init: Record<string, string | boolean>) =>
     page.evaluate((i) => void dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, ...(i as KeyboardEventInit) })), init);
@@ -301,7 +301,7 @@ test("desktop keys: Enter climbs the hint, Esc steps back, browser combos and he
   await page.keyboard.press("Space"); // notes on
   await expect(page.locator(".play.notes-mode")).toHaveCount(1);
   // Queens: Ctrl+S is the browser's (save page), a bare S is Scratch.
-  await page.goto("/?play=queens-easy");
+  await page.goto(playUrl("queens-easy"));
   await expect(page.locator(".qcell").first()).toBeVisible();
   await key({ key: "s", ctrlKey: true });
   await expect(page.locator(".play.scratch-mode")).toHaveCount(0);
@@ -310,7 +310,7 @@ test("desktop keys: Enter climbs the hint, Esc steps back, browser combos and he
 });
 
 test("hint ladder climbs where → what → why and applies a step", async ({ page }) => {
-  await page.goto("/?play=classic-easy");
+  await page.goto(playUrl("classic-easy"));
   await page.getByTestId("tool-hint").click();
   const sheet = page.getByTestId("hint-sheet");
   await expect(sheet.locator(".rung-1")).toContainText("Look at");
@@ -325,7 +325,7 @@ test("hint ladder climbs where → what → why and applies a step", async ({ pa
 });
 
 test("hint text colours each square it names and rings that square in the same colour", async ({ page }) => {
-  await page.goto("/?play=classic-easy");
+  await page.goto(playUrl("classic-easy"));
   await page.getByTestId("tool-hint").click();
   await page.getByTestId("hint-next").click();
   await page.getByTestId("hint-next").click(); // → why: the reasoning names squares
@@ -362,7 +362,7 @@ test("hint text colours each square it names and rings that square in the same c
 });
 
 test("a tap on the board while a hint is open only closes it: nothing is selected or placed", async ({ page }) => {
-  await page.goto("/?play=classic-easy");
+  await page.goto(playUrl("classic-easy"));
   const board = await readBoard(page);
   const sheet = page.getByTestId("hint-sheet");
   await digitKey(page, 5).click(); // with nothing selected, 5 becomes the digit a tap on the selected square repeats
@@ -386,7 +386,7 @@ test("a tap on the board while a hint is open only closes it: nothing is selecte
 
 test("classic easy can be solved by hints; the next level follows on its own and Scores keeps the result", async ({ page }) => {
   test.setTimeout(180_000);
-  await page.goto("/?play=classic-easy");
+  await page.goto(playUrl("classic-easy"));
   await expect(page.locator(".play .title")).toContainText("Lv 1");
   await solveWithHints(page);
   const result = page.getByTestId("result");
@@ -418,7 +418,7 @@ test("every level entrance runs and leaves the board live", async ({ page }) => 
   page.on("pageerror", (e) => errors.push(e.message));
   for (const [i, style] of STYLES.entries()) {
     const mode = i % 2 ? "queens-easy" : "killer-easy";
-    await page.goto(`/?play=${mode}&entrance=${style}`);
+    await page.goto(`${playUrl(mode)}&entrance=${style}`);
     const play = page.locator(".play");
     await expect(play).toHaveAttribute("data-entering", style);
     await page.waitForTimeout(260);
@@ -427,7 +427,7 @@ test("every level entrance runs and leaves the board live", async ({ page }) => 
     await landed(page);
   }
   // Mid-entrance input works: a sudoku digit lands while the board is still arriving.
-  await page.goto("/?play=classic-easy&entrance=vortex");
+  await page.goto(`${playUrl("classic-easy")}&entrance=vortex`);
   await expect(page.locator(".play")).toHaveAttribute("data-entering", "vortex");
   const empty = page.locator(".board .cell:not(.given)").first();
   await empty.click();
@@ -437,7 +437,7 @@ test("every level entrance runs and leaves the board live", async ({ page }) => 
 });
 
 test("killer: cages render and a cage repeat is explained", async ({ page }) => {
-  await page.goto("/?play=killer-easy");
+  await page.goto(playUrl("killer-easy"));
   await expect(page.locator(".sum").first()).toBeVisible();
   const board = await readBoard(page);
   // Two cells in one cage that share no row, column or box.
@@ -455,7 +455,7 @@ test("killer: cages render and a cage repeat is explained", async ({ page }) => 
 });
 
 test("killer: the 45 lens works out a house's innies or outies", async ({ page }) => {
-  await page.goto("/?play=killer-medium");
+  await page.goto(playUrl("killer-medium"));
   await page.locator(".board .cell").nth(40).click();
   await page.getByTestId("lens").click();
   await expect(page.getByTestId("lens-eq")).toContainText(/45|cage fits|poke out/);
@@ -471,7 +471,7 @@ test("killer: the 45 lens works out a house's innies or outies", async ({ page }
 });
 
 test("killer: cells picked across cages show those cages' total, each cage once, and light them up", async ({ page }) => {
-  await page.goto("/?play=killer-medium");
+  await page.goto(playUrl("killer-medium"));
   const board = await readBoard(page);
   const sums = new Map(await page.$$eval(".sum[data-cage]", (els) => els.map((el) => [Number((el as HTMLElement).dataset.cage), Number(el.textContent)] as const)));
   const firstCell = new Map<number, number>();
@@ -507,7 +507,7 @@ test("killer: cells picked across cages show those cages' total, each cage once,
 });
 
 test("killer: a hint goes straight for a digit and places it", async ({ page }) => {
-  await page.goto("/?play=killer-easy");
+  await page.goto(playUrl("killer-easy"));
   await landed(page);
   const why = await applyNextHint(page);
   expect(why.length).toBeGreaterThan(10);
@@ -515,9 +515,9 @@ test("killer: a hint goes straight for a digit and places it", async ({ page }) 
 });
 
 test("killer: a route is taught a step at a time — Apply pencils that step's squares and the sheet moves on to the next", async ({ page }) => {
-  // A fresh profile opens killer-medium-1: after two digits comes a route of narrowing steps on
-  // the way to r1c3, the last of them 9 pointing along row 2.
-  await page.goto("/?play=killer-medium");
+  // On this board three lone hints come first, then a route of three narrowing steps on the way
+  // to r3c9, each a cage's combinations.
+  await page.goto(playUrl("killer-medium", "k257bdkekr11"));
   await readBoard(page);
   const sheet = page.getByTestId("hint-sheet");
   const pill = page.getByTestId("hint-route");
@@ -541,7 +541,7 @@ test("killer: a route is taught a step at a time — Apply pencils that step's s
     expect(of).toBeGreaterThan(1);
     await expect(sheet.locator(".rung-1")).toContainText("No digit is certain yet.");
     for (let step = 1; step <= of; step++) {
-      await expect(pill).toContainText(`Step ${step} of ${of} · toward r1c3`);
+      await expect(pill).toContainText(`Step ${step} of ${of} · toward r3c9`);
       const used = await hintsUsed();
       while (!(await sheet.locator(".rung-3").count())) await page.getByTestId("hint-next").click(); // → why
       await expect(page.locator(".board.hinting")).toHaveCount(1);
@@ -584,7 +584,7 @@ test("killer: a route is taught a step at a time — Apply pencils that step's s
 
 test("queens: tap toggles ✕, double-tap makes a queen, hold clears; clashes are explained; hints solve it", async ({ page }) => {
   test.setTimeout(120_000);
-  await page.goto("/?play=queens-easy");
+  await page.goto(playUrl("queens-easy"));
   const cells = page.locator(".qcell");
   await expect(cells.first()).toBeVisible();
   const n = Math.round(Math.sqrt(await cells.count()));
@@ -617,7 +617,7 @@ test("queens: tap toggles ✕, double-tap makes a queen, hold clears; clashes ar
 });
 
 test("queens: scratch tries queens and ✕s without counting, then wipes back to your spot or keeps it", async ({ page }) => {
-  await page.goto("/?play=queens-easy");
+  await page.goto(playUrl("queens-easy"));
   const cells = page.locator(".qcell");
   await expect(cells.first()).toBeVisible();
   const n = Math.round(Math.sqrt(await cells.count()));
@@ -663,7 +663,7 @@ test("queens: scratch tries queens and ✕s without counting, then wipes back to
 });
 
 test("queens: squares named in a hint take their region's colour and light up", async ({ page }) => {
-  await page.goto("/?play=queens-medium");
+  await page.goto(playUrl("queens-medium"));
   await page.getByTestId("tool-hint").click();
   await page.getByTestId("hint-next").click();
   await page.getByTestId("hint-next").click();
@@ -683,7 +683,7 @@ test("queens: squares named in a hint take their region's colour and light up", 
 });
 
 test("queens: a tap on the board while a hint is open only closes it", async ({ page }) => {
-  await page.goto("/?play=queens-easy");
+  await page.goto(playUrl("queens-easy"));
   const cell = page.locator(".qcell").first();
   await expect(cell).toBeVisible();
   const sheet = page.getByTestId("hint-sheet");
@@ -749,7 +749,7 @@ test("learn cards show a worked example on a real board", async ({ page }) => {
 });
 
 test("progress resumes after reload", async ({ page }) => {
-  await page.goto("/?play=classic-easy");
+  await page.goto(playUrl("classic-easy"));
   await applyNextHint(page);
   await page.goto("/");
   await expect(page.getByTestId("resume-classic")).toBeVisible();
@@ -757,8 +757,38 @@ test("progress resumes after reload", async ({ page }) => {
   await expect(page.locator(".stats")).toContainText("Hints 1");
 });
 
+test("the level number carries on from boards solved before the update", async ({ page }) => {
+  // A record from 0.3: solved ids from the old packs, no level counts.
+  await page.goto("/");
+  await page.evaluate(() =>
+    localStorage.setItem(
+      "cagecoach.progress",
+      JSON.stringify({ solved: { "killer-easy": ["killer-easy-1", "killer-easy-2", "killer-easy-5"] }, best: {}, streak: { last: "", days: 0 }, counters: {} }),
+    ),
+  );
+  await page.reload();
+  await page.getByTestId("mode-killer").locator(".mode-head").click();
+  await expect(page.getByTestId("play-killer-easy")).toContainText("3 solved");
+  await page.getByTestId("play-killer-easy").click();
+  await expect(page.locator(".play .title")).toContainText("Lv 4");
+});
+
+test("a link opens one board; New puzzle moves on to another and doesn't count as a level", async ({ page }) => {
+  const pack = packOf("classic-easy");
+  const boards = new Set(pack.puzzles.map((e) => e.g));
+  const givens = () => page.$$eval(".board .cell", (els) => els.map((el) => el.querySelector(".v")?.textContent || "0").join(""));
+  const entry = pack.puzzles[7]!;
+  await page.goto(playUrl("classic-easy", entry.id));
+  await readBoard(page);
+  expect(await givens()).toBe(entry.g);
+  await page.getByRole("button", { name: "Menu", exact: true }).click();
+  await page.getByRole("button", { name: "New puzzle" }).click();
+  await expect.poll(async () => ((g) => g !== entry.g && boards.has(g))(await givens())).toBe(true);
+  await expect(page.locator(".play .title")).toContainText("Lv 1");
+});
+
 test("killer: Auto notes is a layer — dim digits you can strike, under your own notes, gone again with a tap", async ({ page }) => {
-  await page.goto("/?play=killer-easy");
+  await page.goto(playUrl("killer-easy"));
   await readBoard(page);
   const auto = page.getByTestId("tool-auto");
   await expect(page.locator(".notes i.auto")).toHaveCount(0);
@@ -794,14 +824,14 @@ test("killer: Auto notes is a layer — dim digits you can strike, under your ow
   await digitKey(page, pick!.dim).click(); // tapping a struck digit brings it back, dim
   await expect(struck).toHaveClass(/auto/);
   // It's a setting: the next game opens with the layer on.
-  await page.goto("/?play=classic-easy");
+  await page.goto(playUrl("classic-easy"));
   await readBoard(page);
   await expect(page.getByTestId("tool-auto")).toHaveAttribute("aria-pressed", "true");
   expect(await page.locator(".notes i.auto").count()).toBeGreaterThan(0);
 });
 
 test("notes focus on the selection: its peers' notes brighten, a far square's stay quiet", async ({ page }) => {
-  await page.goto("/?play=classic-easy");
+  await page.goto(playUrl("classic-easy"));
   const cells = await readBoard(page);
   await page.getByTestId("tool-auto").click();
   await expect(page.locator(".notes i.auto").first()).toBeAttached();
@@ -833,13 +863,13 @@ test("notes focus on the selection: its peers' notes brighten, a far square's st
 test("backup: save a file, then restore it from the game menu over newer progress", async ({ page }, testInfo) => {
   // Pin the download path: a touch device with file sharing would open the share sheet instead.
   await page.addInitScript(() => Object.defineProperty(Navigator.prototype, "canShare", { value: undefined }));
-  await page.goto("/?play=classic-easy");
+  await page.goto(playUrl("classic-easy"));
   await applyNextHint(page);
   await page.goto("/");
   await page.evaluate(() =>
     localStorage.setItem(
       "cagecoach.progress",
-      JSON.stringify({ solved: { "classic-easy": ["a", "b", "c"] }, best: {}, hinted: {}, total: 3, streak: { last: "", days: 0 } }),
+      JSON.stringify({ solved: { "classic-easy": ["classic-easy-1", "classic-easy-2", "classic-easy-3"] }, best: {}, hinted: {}, total: 3, streak: { last: "", days: 0 } }),
     ),
   );
   await page.reload();
@@ -863,7 +893,7 @@ test("backup: save a file, then restore it from the game menu over newer progres
 
   // Start over, then restore mid-game: the open game must not save over the backup on the way out.
   await page.evaluate(() => localStorage.clear());
-  await page.goto("/?play=classic-easy");
+  await page.goto(playUrl("classic-easy"));
   await landed(page);
   await page.getByRole("button", { name: "Menu", exact: true }).click();
   await page.getByRole("button", { name: "Settings" }).click();

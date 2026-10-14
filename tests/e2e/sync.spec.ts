@@ -37,7 +37,7 @@ function syncServer() {
   return { files, route, only };
 }
 
-const LEGACY_PROGRESS = { solved: { "classic-easy": ["a", "b"] }, best: { "classic-easy": 90_000 }, hinted: { "naked-single": 1 }, total: 2, streak: { last: "", days: 0 } };
+const LEGACY_PROGRESS = { solved: { "classic-easy": ["classic-easy-1", "classic-easy-2"] }, best: { "classic-easy": 90_000 }, hinted: { "naked-single": 1 }, total: 2, streak: { last: "", days: 0 } };
 
 test("sync: turn it on from one device and join from another; scores and gameplay settings follow, the feel settings don't", async ({ browser }) => {
   const server = syncServer();
@@ -64,7 +64,7 @@ test("sync: turn it on from one device and join from another; scores and gamepla
   expect(server.files.size).toBe(1);
   const pushed = server.only();
   expect(pushed.version).toBe(2);
-  expect(pushed.data.progress).toMatchObject({ solved: { "classic-easy": ["a", "b"] } });
+  expect(pushed.data.progress).toMatchObject({ solved: { "classic-easy": ["classic-easy-1", "classic-easy-2"] } });
   expect(Object.values((pushed.data.progress as { counters: Record<string, { total: number }> }).counters).map((c) => c.total)).toEqual([2]);
   expect(pushed.data.settings).toEqual({
     highlightSame: true,

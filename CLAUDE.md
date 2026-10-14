@@ -10,10 +10,12 @@ feel. Read `docs/SPEC.md` (what), `docs/ARCHITECTURE.md` (how), `docs/MILESTONES
   preinstalled Chromium (e.g. `/opt/pw-browsers/chromium`).
 - `npm run typecheck` — `tsc --noEmit`.
 - `npm run check` — typecheck + unit tests + build. Must be green before work is "done".
-- `npm run dev` — Vite dev server. `?play=classic-easy` (or `killer-…`, `queens-…`) opens a game.
+- `npm run dev` — Vite dev server. `?play=classic-easy` (or `killer-…`, `queens-…`) opens a game;
+  `?play=classic-easy-c21u8fyyj3eh` opens that board (picks are random, so e2e tests name theirs).
 - `npm run gen -- --mode all --max 100` — build the v2 packs in `public/packs/v2/` (append-only; keeps
-  entries that still fit). The v1 packs (`public/packs/*.json`) are frozen; the app reads them until it
-  switches to v2. `npm run examples` refreshes the Learn screen's worked examples from v1.
+  entries that still fit). The app reads them. The v1 packs (`public/packs/*.json`) are frozen: installs
+  that haven't updated read them, and `npm run examples` refreshes the Learn screen's worked examples
+  from them.
 - `npm run stats` — profile every pack, v1 beside v2. `npx tsx scripts/gen-bench.ts` — generator cost
   and sub-target mix per band.
 - `npm run build:artifact` — a copy for hosting as a single page (no service worker), in `dist-artifact/`.

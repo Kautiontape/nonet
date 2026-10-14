@@ -194,9 +194,11 @@ marks anything (all three modes).
   - **Queens.** Easy: basics only, 6×6 or 7×7. Medium: touch and counting steps, stuck once or
     twice, 7×7 or 8×8. Hard: the same steps, stuck at 3+ points, 8×8 or 9×9. Expert: contradiction
     two to eight times, 9×9 or 10×10.
-- The app reads the v1 packs (`public/packs/*.json`, graded by the hardest tier needed) until it
-  switches to v2 (`public/packs/v2/`).
-- Next puzzle = first unsolved in pack order; packs cycle when exhausted.
+- The app reads the v2 packs (`public/packs/v2/`). The v1 packs (`public/packs/*.json`, graded
+  by the hardest tier needed) stay on the server for installs that haven't updated.
+- Next puzzle = a random unsolved one of the mode and difficulty, never the one just left, so *New
+  puzzle* moves on and the puzzle left waits in the draw. Once all are solved, a random replay.
+  `?play=killer-medium-<board id>` opens one board (sharing, tests).
 
 ---
 
@@ -210,7 +212,7 @@ marks anything (all three modes).
 - Completion: light sweeps across the house, beams and streaks, ROW / COLUMN / BOX / CAGE / ALL 7s
   callouts; simultaneous completions escalate to DOUBLE / TRIPLE / QUAD with bigger sound.
 - Solve: wave of light from the last cell, fireworks, SOLVED / PERFECT, musical resolution — then
-  play keeps going: ~2.4 s later the next level (next unsolved puzzle in the pack, same mode and
+  play keeps going: ~2.4 s later the next level (a random unsolved puzzle of the same mode and
   difficulty) arrives on its own. A translucent results banner rides at the top meanwhile (time,
   record or previous best / first clear, mistakes, hints; PERFECT when there are none), never
   blocks input, and fades after ~6 s or on a tap. While it shows, the play screen's top bar,
@@ -237,11 +239,13 @@ marks anything (all three modes).
 
 ## 6. Stats & storage
 
-Per mode-difficulty: solved ids, best time; total solves; daily streak; per-technique hint counts
+Per mode-difficulty: solved ids, best time, levels beaten; total solves; daily streak; per-technique hint counts
 (shown on the Learn screen); a results history (last 300 levels: time, mistakes, hints, perfect,
 record / first clear). **Scores** (home footer and the in-game menu) shows records per mode and
-difficulty and the recent levels, filterable by mode. Levels are numbered by their place in the
-pack. Everything is saved in the browser (localStorage); no accounts.
+difficulty and the recent levels, filterable by mode. A level's number is the levels beaten in
+its mode and difficulty, plus one: every solve on every synced device counts, replays too, plus
+each board solved in the v1 packs once. The home screen's "N solved" and Scores' "N cleared" show
+the same count. Everything is saved in the browser (localStorage); no accounts.
 
 **Sync across devices** (Settings → Data, above Backup): *Turn on* makes a 16-character sync
 code (four groups, shown large, with *Copy* and *Share link*), and from then on scores, streak,

@@ -50,7 +50,7 @@ export function openScores(): void {
           h("b", null, MODE_LABEL[m] ?? m),
           ...DIFFICULTIES.map((d) => {
             const best = progress.best[`${m}-${d}`];
-            const cleared = progress.solved[`${m}-${d}`]?.length ?? 0;
+            const cleared = progress.beaten[`${m}-${d}`] ?? 0;
             return h(
               "span",
               { class: `record${best === undefined ? " none" : ""}` },

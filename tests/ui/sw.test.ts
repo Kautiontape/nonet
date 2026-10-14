@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
  * The service worker, run in Node against fakes: what `install` puts in the cache decides what
  * works offline, and nothing in the e2e suite exercises a worker (the preview server is http).
  */
-function loadWorker(html: string, missing = new Set<string>()) {
+function loadWorker(html: string, missing = new Set<string>(), cacheNames: string[] = []) {
   const src = readFileSync("public/sw.js", "utf8");
   const handlers: Record<string, (event: unknown) => void> = {};
   const store = new Map<string, string>();
@@ -39,14 +39,15 @@ function loadWorker(html: string, missing = new Set<string>()) {
     skipWaiting: async () => {},
     clients: { claim: async () => {} },
   };
-  const caches = { open: async () => cache, keys: async () => [], delete: async () => true, match: cache.match };
+  const deleted: string[] = [];
+  const caches = { open: async () => cache, keys: async () => cacheNames, delete: async (name: string) => deleted.push(name) > 0, match: cache.match };
   new Function("self", "caches", "fetch", src)(self, caches, fetchFake);
   const fire = async (name: string) => {
     const waits: Promise<unknown>[] = [];
     handlers[name]!({ waitUntil: (p: Promise<unknown>) => waits.push(p) });
     await Promise.all(waits);
   };
-  return { fire, store, requested };
+  return { fire, store, requested, deleted };
 }
 
 const HTML = `<!doctype html><html><head>
@@ -61,20 +62,29 @@ describe("service worker install", () => {
     await w.fire("install");
     const keys = [...w.store.keys()];
     for (const mode of ["classic", "killer", "queens"])
-      for (const d of ["easy", "medium", "hard", "expert"]) expect(keys, `${mode}-${d}`).toContain(`./packs/${mode}-${d}.json`);
+      for (const d of ["easy", "medium", "hard", "expert"]) expect(keys, `${mode}-${d}`).toContain(`./packs/v2/${mode}-${d}.json`);
     expect(keys).toContain("./packs/examples.json");
+    expect(keys).not.toContain("./packs/classic-easy.json"); // v1: only installs that haven't updated read it
     expect(keys).toContain("./assets/index-abc123.js");
     expect(keys).toContain("./assets/index-def456.css");
     expect(keys).toContain("./");
   });
 
   it("still installs when a file is missing, so one bad file never blocks offline support for the rest", async () => {
-    const w = loadWorker(HTML, new Set(["./packs/classic-easy.json", "./assets/index-abc123.js"]));
+    const w = loadWorker(HTML, new Set(["./packs/v2/classic-easy.json", "./assets/index-abc123.js"]));
     await expect(w.fire("install")).resolves.toBeUndefined();
     const keys = [...w.store.keys()];
-    expect(keys).toContain("./packs/queens-hard.json");
+    expect(keys).toContain("./packs/v2/queens-hard.json");
     expect(keys).toContain("./assets/index-def456.css");
-    expect(keys).not.toContain("./packs/classic-easy.json");
-    expect(w.requested).toContain("./packs/classic-easy.json");
+    expect(keys).not.toContain("./packs/v2/classic-easy.json");
+    expect(w.requested).toContain("./packs/v2/classic-easy.json");
+  });
+});
+
+describe("service worker activate", () => {
+  it("drops this scope's older caches, so an update leaves no v1 packs behind, and keeps the other scope's", async () => {
+    const w = loadWorker(HTML, new Set(), ["nonet-v1", "nonet-v1@/", "nonet-v1@/beta/", "nonet-v2@/"]);
+    await w.fire("activate");
+    expect(w.deleted.sort()).toEqual(["nonet-v1", "nonet-v1@/"]);
   });
 });

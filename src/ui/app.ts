@@ -27,7 +27,7 @@ export class App {
   private kind: "home" | "play" | null = null;
   private factories: {
     home?: ScreenFactory;
-    play?: (app: App, mode: Mode, difficulty: Difficulty, resume: boolean, avoid?: string) => Promise<Screen>;
+    play?: (app: App, mode: Mode, difficulty: Difficulty, resume: boolean, avoid?: string, board?: string) => Promise<Screen>;
   } = {};
 
   constructor(
@@ -77,13 +77,14 @@ export class App {
     if (this.kind === "home") void this.home();
   }
 
-  async play(mode: Mode, difficulty: Difficulty, resume = false, avoid?: string): Promise<void> {
+  /** Open a game: the saved one (`resume`), the board with id `board`, or a new pick that isn't `avoid`. */
+  async play(mode: Mode, difficulty: Difficulty, resume = false, avoid?: string, board?: string): Promise<void> {
     // Tear down first so the old screen's final save can't overwrite the new game's.
     this.current?.destroy();
     this.current = null;
     this.kind = null;
     try {
-      const s = await this.factories.play!(this, mode, difficulty, resume, avoid);
+      const s = await this.factories.play!(this, mode, difficulty, resume, avoid, board);
       this.mount(s, MODE_THEME[mode]);
       this.kind = "play";
       save("lastMode", mode);

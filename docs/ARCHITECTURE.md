@@ -43,11 +43,12 @@ src/
   game/                   # pure TS game models (no DOM)
     sudoku-game.ts        # digits, notes, undo/redo, mistake reasons, completion events, hints
     queens-game.ts        # marks, gestures (tap/double tap/hold/drag), scratch layer, conflicts, events, hints
-    packs.ts              # fetch + decode packs, pick next unsolved
+    packs.ts              # fetch + decode the v2 packs, pick a random unsolved one
   sync/                   # pure TS, never imports ui/: sync across devices
     code.ts               # the sync code (Crockford base32), its hash = the cloud file's name
     envelope.ts           # the { app, version, exported, data } header backups and the cloud copy share
-    progress.ts           # stored progress shape, per-device counters, legacy migration
+    progress.ts           # stored progress shape, per-device counters and level counts, legacy migration
+    v1.ts                 # v1 pack ids ("classic-easy-17"): their solves count toward the level number
     merge.ts              # the join of two copies, key by key (union / min / later-wins / max per device)
     client.ts             # the sync cycle over injected fetch, store and config
     equal.ts              # deepEqual, canonical JSON
@@ -58,7 +59,7 @@ src/
     components/           # sudoku-board (+ cage-paths), queens-board, numpad, hint-sheet, toast,
                           # result-banner (post-level stats strip)
     fx/                   # background (nebula), particles (FX canvas), callout,
-                          # levels (8 themed entrances/exits) + level-order (rotation, spiral, level no.)
+                          # levels (8 themed entrances/exits) + level-order (rotation, spiral)
     audio/                # synth.ts (engine), theory.ts (themes/harmony), dsp.ts (IR, noise)
     sound.ts              # façade the UI calls; silent until the synth is connected
     cell-refs.ts          # square names in hint text → shared colours for text chips and board rings
@@ -66,8 +67,8 @@ src/
     palette.ts settings.ts store.ts haptics.ts icons.ts messages.ts dom.ts style.css
   main.ts
 public/
-  packs/                  # v1 puzzle packs (frozen: the app and cached clients read them)
-    v2/                   # v2 packs from the v2 generators
+  packs/                  # v1 puzzle packs (frozen: installs that haven't updated read them)
+    v2/                   # v2 packs from the v2 generators: what the app reads
   sw.js manifest.webmanifest icons/
 scripts/
   generate-pack.ts        # v2 pack builder: worker processes, pool and select, append-only
@@ -159,7 +160,8 @@ Details, measurements and the methods that lost are in `docs/generator-research.
   arguments make the same pack. Each entry carries its content id, seed, generator version,
   sub-target and a profile summary (`pack-v2.ts`).
 - v1 packs (`public/packs/*.json`) came from `puzzles.ts` and `queens/generate.ts`'s
-  `generateQueensFor`; they stay as they are while the app reads them.
+  `generateQueensFor`; they stay as they are for installs that haven't updated, and `npm run
+  examples` reads them.
 
 ## UI
 
@@ -170,7 +172,11 @@ Details, measurements and the methods that lost are in `docs/generator-research.
   (`sync/envelope.ts`). Restoring replaces them all, then turns `save`/`remove` into no-ops and
   loads the page again (plain path, never `?play=`), so an open game's autosave or the cached
   settings can't write over the backup. Progress keeps solve and hint counts per device
-  (`counters[deviceId]`; the screens see the sums); a cleared game leaves `{ clearedAt }` in its
+  (`counters[deviceId]`) and levels finished per mode and difficulty per device
+  (`levels[deviceId]`, its own field: 0.3 rebuilds `counters` entries and would drop it). The
+  screens see the sums; a level's number adds each band's v1 solves (`sync/v1.ts`). Boards are
+  named by content id; a game saved under a v1 id gets its content id when resumed, so finishing
+  it counts once. A cleared game leaves `{ clearedAt }` in its
   slot and saves carry `savedAt`; `settingsAt` says when a synced setting last changed here.
 - Sync (`docs/design/2026-10-14-cross-device-sync.md`): the cloud copy is a backup envelope of
   the synced keys, one file per player on the server, named by the hash of a sync code (the

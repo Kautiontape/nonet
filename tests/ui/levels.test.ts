@@ -1,5 +1,5 @@
 import { mulberry32 } from "../../src/engine/rng";
-import { createStyleBag, levelOf, spiralOrder } from "../../src/ui/fx/level-order";
+import { createStyleBag, spiralOrder } from "../../src/ui/fx/level-order";
 import { finishPuzzle, loadProgress, loadResults } from "../../src/ui/store";
 
 describe("level entrance order", () => {
@@ -18,12 +18,6 @@ describe("level entrance order", () => {
     const nine = spiralOrder(9);
     expect([...nine].sort((a, b) => a - b)).toEqual([...Array(81).keys()]);
     expect(nine[40]).toBe(80); // the centre comes last
-  });
-
-  it("reads the level number off a pack puzzle id", () => {
-    expect(levelOf("classic-easy-7")).toBe(7);
-    expect(levelOf("queens-expert-60")).toBe(60);
-    expect(levelOf("custom")).toBe(1);
   });
 });
 

@@ -41,9 +41,3 @@ export function spiralOrder(n: number): number[] {
   }
   return rank;
 }
-
-/** The level number of a pack puzzle: its place in the pack ("classic-easy-7" → 7). */
-export function levelOf(id: string): number {
-  const m = /-(\d+)$/.exec(id);
-  return m ? Number(m[1]) : 1;
-}

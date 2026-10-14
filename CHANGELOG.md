@@ -3,6 +3,12 @@
 What's new in Nonet, newest first. The app shows this file under Settings → Changelog, so it is
 written for players. Read `docs/CHANGELOG-STYLE.md` before adding to it.
 
+## Unreleased
+
+- **New puzzles.** Every mode and difficulty has 100 new boards, each graded by the steps it takes to solve, with an easier one or a stretch now and then.
+- **Your level keeps counting.** Every puzzle you finish adds one, replays included, across all your synced devices, starting from the levels you'd already solved.
+- Fixed: a puzzle you left with New puzzle came back right after your next solve; puzzles now come in random order.
+
 ## 0.3.1 — 2026-10-14
 
 - Fixed: offline, a puzzle you hadn't opened before said it couldn't load. Every pack is now kept on your device after your first visit.

@@ -41,7 +41,7 @@ export function createHome(app: App): Screen {
   for (const info of MODES) {
     const th = THEMES[info.theme];
     const saved = loadSaved<{ solved?: boolean }>(info.mode);
-    const solvedTotal = DIFFICULTIES.reduce((a, d) => a + (progress.solved[`${info.mode}-${d}`]?.length ?? 0), 0);
+    const solvedTotal = DIFFICULTIES.reduce((a, d) => a + (progress.beaten[`${info.mode}-${d}`] ?? 0), 0);
     const chips = DIFFICULTIES.map((d: Difficulty) =>
       h(
         "button",
@@ -57,7 +57,7 @@ export function createHome(app: App): Screen {
           },
         },
         h("b", null, DIFFICULTY_LABEL[d]!),
-        h("small", null, `${progress.solved[`${info.mode}-${d}`]?.length ?? 0} solved`),
+        h("small", null, `${progress.beaten[`${info.mode}-${d}`] ?? 0} solved`),
       ),
     );
     const resume =

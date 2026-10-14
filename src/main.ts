@@ -32,8 +32,8 @@ mountResults(document.body);
 const app = new App(document.getElementById("app")!, new Fx(fxCanvas), new Background(bgCanvas));
 app.register({
   home: createHome,
-  play: (a, mode, difficulty, resume, avoid) =>
-    mode === "queens" ? createQueensPlay(a, difficulty, resume, avoid) : createSudokuPlay(a, mode, difficulty, resume, avoid),
+  play: (a, mode, difficulty, resume, avoid, board) =>
+    mode === "queens" ? createQueensPlay(a, difficulty, resume, avoid, board) : createSudokuPlay(a, mode, difficulty, resume, avoid, board),
 });
 app.onError = (message) => toast(message, "bad");
 if (SYNC_AVAILABLE) startSync(app);
@@ -68,7 +68,8 @@ addEventListener("pointerdown", () => sound.unlock(), { capture: true, once: tru
 if (import.meta.env.PROD && import.meta.env.VITE_TARGET !== "artifact" && "serviceWorker" in navigator && location.protocol === "https:")
   navigator.serviceWorker.register("./sw.js").catch(() => {});
 
-// ?play=killer-medium jumps straight into a game (handy for sharing and for tests).
+// ?play=killer-medium jumps straight into a game, and ?play=killer-medium-<board id> into that
+// board (handy for sharing and for tests).
 const params = new URLSearchParams(location.search);
 const play = params.get("play");
 // Settings loads the page with ?restored after restoring a backup.
@@ -78,9 +79,9 @@ if (params.has("restored")) {
 }
 // A sync link from another device (?sync=CODE) opens the join prompt; it wins over ?play=.
 const joinCode = params.get("sync");
-const [mode, difficulty] = (play ?? "").split("-") as [Mode, Difficulty];
+const [mode, difficulty, board] = (play ?? "").split("-") as [Mode, Difficulty, string?];
 if (joinCode !== null && SYNC_AVAILABLE) {
   history.replaceState(null, "", location.pathname);
   void app.home().then(() => openSettings({ tab: "data", join: joinCode }));
-} else if (["classic", "killer", "queens"].includes(mode) && DIFFICULTIES.includes(difficulty)) void app.play(mode, difficulty);
+} else if (["classic", "killer", "queens"].includes(mode) && DIFFICULTIES.includes(difficulty)) void app.play(mode, difficulty, false, undefined, board);
 else void app.home();

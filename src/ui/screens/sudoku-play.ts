@@ -13,7 +13,7 @@ import { regionEquation, type RegionEquation } from "../../engine/region";
 import { createState } from "../../engine/state";
 import { cageView } from "../../engine/techniques/killer";
 import type { CellId, Difficulty, House, Puzzle } from "../../engine/types";
-import { loadSudokuPack, pickNext } from "../../game/packs";
+import { loadSudokuPack, pickNext, withContentId } from "../../game/packs";
 import { SudokuGame, type GameEvent, type SavedSudoku } from "../../game/sudoku-game";
 import { clearSaved, loadSaved, storeSaved, type App, type Screen } from "../app";
 import { refNodes } from "../cell-refs";
@@ -24,7 +24,6 @@ import { showResult } from "../components/result-banner";
 import { clearToast, toast } from "../components/toast";
 import { flip, formatTime, h, holdable, shiftOnly, svgIcon } from "../dom";
 import { callout } from "../fx/callout";
-import { levelOf } from "../fx/level-order";
 import { enterLevel, leaveLevel } from "../fx/levels";
 import { buzz } from "../haptics";
 import { ICONS } from "../icons";
@@ -39,23 +38,24 @@ import { openSettings } from "./settings-sheet";
 
 type SudokuMode = "classic" | "killer";
 
-export async function createSudokuPlay(app: App, mode: SudokuMode, difficulty: Difficulty, resume: boolean, avoid?: string): Promise<Screen> {
+export async function createSudokuPlay(app: App, mode: SudokuMode, difficulty: Difficulty, resume: boolean, avoid?: string, board?: string): Promise<Screen> {
   let puzzle: Puzzle | null = null;
   let savedState: SavedSudoku | null = null;
   if (resume) {
     const saved = loadSaved<SavedSudoku>(mode);
     if (saved) {
-      puzzle = decodeSudoku(saved.entry as ReturnType<typeof encodeSudoku>);
+      puzzle = withContentId(decodeSudoku(saved.entry as ReturnType<typeof encodeSudoku>));
       savedState = saved.state;
       difficulty = saved.difficulty;
     }
   }
   if (!puzzle) {
     const pack = await loadSudokuPack(mode, difficulty);
-    puzzle = pickNext(pack, loadProgress().solved[`${mode}-${difficulty}`] ?? [], avoid);
+    puzzle = (board ? pack.find((p) => p.id === board) : undefined) ?? pickNext(pack, loadProgress().solved[`${mode}-${difficulty}`] ?? [], avoid);
     if (!puzzle) throw new Error("empty pack");
   }
-  return new SudokuPlay(app, mode, difficulty, puzzle, savedState);
+  const level = (loadProgress().beaten[`${mode}-${difficulty}`] ?? 0) + 1;
+  return new SudokuPlay(app, mode, difficulty, puzzle, savedState, level);
 }
 
 class SudokuPlay implements Screen {
@@ -108,6 +108,8 @@ class SudokuPlay implements Screen {
     private difficulty: Difficulty,
     private puzzle: Puzzle,
     saved: SavedSudoku | null,
+    /** Levels beaten in this mode and difficulty, plus one. */
+    private level: number,
   ) {
     this.game = new SudokuGame(puzzle, saved);
     this.applyGameSettings();
@@ -150,7 +152,7 @@ class SudokuPlay implements Screen {
     this.timerEl = h("div", { class: "timer", "data-testid": "timer" });
     this.progressEl = h("i");
     this.statsEl = h("div", { class: "stats" });
-    const title = h("div", { class: "title" }, h("b", null, MODE_LABEL[mode]!), h("span", null, `${DIFFICULTY_LABEL[difficulty]!} · Lv ${levelOf(puzzle.id)}`));
+    const title = h("div", { class: "title" }, h("b", null, MODE_LABEL[mode]!), h("span", null, `${DIFFICULTY_LABEL[difficulty]!} · Lv ${level}`));
     const topbar = h(
       "header",
       { class: "topbar" },
@@ -249,7 +251,7 @@ class SudokuPlay implements Screen {
 
   /** The level drops in (the style rotates level to level). Marked on the screen until it lands. */
   private enter(): void {
-    const { style, ms } = enterLevel(this.board.stage(), this.app, levelOf(this.puzzle.id));
+    const { style, ms } = enterLevel(this.board.stage(), this.app, this.level);
     this.el.dataset.entering = style.id;
     window.setTimeout(() => delete this.el.dataset.entering, ms);
   }
@@ -738,7 +740,7 @@ class SudokuPlay implements Screen {
       mode: this.mode,
       difficulty: this.difficulty,
       id: this.puzzle.id,
-      level: levelOf(this.puzzle.id),
+      level: this.level,
       time: g.elapsedMs,
       mistakes: g.mistakes,
       hints: g.hintsUsed,

@@ -3,11 +3,12 @@
    The app may be served twice on one origin (production at /, the beta at /beta/), each with its
    own worker: a worker only handles requests inside its scope and keeps a cache of its own. */
 const SCOPE = new URL(self.registration.scope).pathname;
-const CACHE = `nonet-v1@${SCOPE}`;
+// A new name when the files kept change, so activating drops the old copies (v2: the v1 packs).
+const CACHE = `nonet-v2@${SCOPE}`;
 
-/** Every mode × difficulty pack, plus the Learn screen's worked examples: under 300 KB in all. */
+/** Every mode × difficulty pack the app reads, plus the Learn screen's worked examples: about 560 KB in all. */
 const PACKS = ["classic", "killer", "queens"]
-  .flatMap((mode) => ["easy", "medium", "hard", "expert"].map((d) => `./packs/${mode}-${d}.json`))
+  .flatMap((mode) => ["easy", "medium", "hard", "expert"].map((d) => `./packs/v2/${mode}-${d}.json`))
   .concat("./packs/examples.json");
 
 /**

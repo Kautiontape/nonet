@@ -40,13 +40,15 @@ const page = [
 writeFileSync(join(out, "nonet.html"), page + "\n");
 
 cpSync(join(build, "assets"), join(out, "assets"), { recursive: true });
-cpSync(join(build, "packs"), join(out, "packs"), { recursive: true });
-// The app doesn't read the v2 packs yet; they stay out of the artifact until it does.
-rmSync(join(out, "packs", "v2"), { recursive: true, force: true });
+// The app reads packs/v2 and the Learn examples; the frozen v1 packs are only for installs that haven't updated.
+mkdirSync(join(out, "packs"), { recursive: true });
+cpSync(join(build, "packs", "v2"), join(out, "packs", "v2"), { recursive: true });
+cpSync(join(build, "packs", "examples.json"), join(out, "packs", "examples.json"));
 rmSync(build, { recursive: true, force: true });
 
 const files = [
   ...readdirSync(join(out, "assets")).map((f) => `assets/${f}`),
-  ...readdirSync(join(out, "packs")).map((f) => `packs/${f}`),
+  ...readdirSync(join(out, "packs", "v2")).map((f) => `packs/v2/${f}`),
+  "packs/examples.json",
 ];
 console.log(JSON.stringify({ page: join(out, "nonet.html"), root: out, files }, null, 2));

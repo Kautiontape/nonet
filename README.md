@@ -50,19 +50,22 @@ npm run dev          # http://localhost:5173  (?play=killer-medium jumps straigh
 
 ### Puzzle packs
 
-Packs live in `public/packs/{classic,killer,queens}-{easy,medium,hard,expert}.json` and are
-generated offline, deterministically per seed:
+The app plays the v2 packs, `public/packs/v2/{classic,killer,queens}-{easy,medium,hard,expert}.json`:
+100 boards each, generated offline, the same board for the same seed. Each board is named by a hash
+of what the player sees (its content id).
 
 ```bash
-npm run gen -- --mode all --count 60          # everything
-npm run gen -- --mode killer --difficulty hard --count 60 --seed 1
+npm run gen -- --mode all --max 100           # build or top up every v2 pack (append-only)
+npm run gen -- --mode killer --band hard      # one mode and band
+npm run stats                                 # profile every pack, v1 beside v2
 npm run examples                              # refresh the Learn screen's worked examples
 ```
 
-Classic puzzles are dug from a random grid while the exact solver confirms uniqueness, then graded
-by the hardest technique the logical solver needs. Killer puzzles use a full logical solve as the
-uniqueness proof: when the solver gets stuck, the loosest stuck cage is split and the solve reruns.
-Queens puzzles grow colour regions around a valid queen placement and repair until unique.
+Each band is a set of rules over a board's solve profile (`src/engine/bands.ts`): the techniques it
+needs, how often the solver gets stuck, and so on. A pack is about a quarter breathers, a sixth
+stretches and the rest standard boards. `docs/generator-research.md` covers how the generators work
+and what they cost. The v1 packs (`public/packs/*.json`) are frozen; installs that haven't updated
+still read them.
 
 ## Deploying
 

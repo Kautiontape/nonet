@@ -1,4 +1,15 @@
 import { expect, type Page } from "@playwright/test";
+import { readFileSync } from "node:fs";
+
+/** A v2 pack as the app reads it ("classic-easy"). */
+export function packOf(key: string): { puzzles: { id: string; g: string }[] } {
+  return JSON.parse(readFileSync(`public/packs/v2/${key}.json`, "utf8")) as { puzzles: { id: string; g: string }[] };
+}
+
+/** The URL that opens one board of a pack: the first, unless `board` names another. Picks are random, so tests name theirs. */
+export function playUrl(key: string, board = packOf(key).puzzles[0]!.id): string {
+  return `/?play=${key}-${board}`;
+}
 
 /** Open the hint sheet and climb to "Apply it" (rung 3 → apply). Returns the "do" text shown. */
 export async function applyNextHint(page: Page): Promise<string> {

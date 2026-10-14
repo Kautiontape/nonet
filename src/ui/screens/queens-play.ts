@@ -4,7 +4,7 @@ import type { QueensHint, RegionNamer } from "../../engine/queens/hints";
 import { decodeQueens, encodeQueens, type QueensPackEntry } from "../../engine/queens/pack";
 import { CROSS, EMPTY, QUEEN, type QCell, type QueensPuzzle } from "../../engine/queens/types";
 import type { Difficulty } from "../../engine/types";
-import { loadQueensPack, pickNext } from "../../game/packs";
+import { loadQueensPack, pickNext, withContentId } from "../../game/packs";
 import { QueensGame, type QueensEvent, type SavedQueens } from "../../game/queens-game";
 import { clearSaved, loadSaved, storeSaved, type App, type Screen } from "../app";
 import { HintSheet } from "../components/hint-sheet";
@@ -13,7 +13,6 @@ import { showResult } from "../components/result-banner";
 import { clearToast, toast } from "../components/toast";
 import { flip, formatTime, h, svgIcon } from "../dom";
 import { callout } from "../fx/callout";
-import { levelOf } from "../fx/level-order";
 import { enterLevel, leaveLevel } from "../fx/levels";
 import { buzz } from "../haptics";
 import { ICONS } from "../icons";
@@ -28,23 +27,24 @@ import { openSettings } from "./settings-sheet";
 
 const NAMES: RegionNamer = { region: (i) => REGION_COLORS[i % REGION_COLORS.length]!.name };
 
-export async function createQueensPlay(app: App, difficulty: Difficulty, resume: boolean, avoid?: string): Promise<Screen> {
+export async function createQueensPlay(app: App, difficulty: Difficulty, resume: boolean, avoid?: string, board?: string): Promise<Screen> {
   let puzzle: QueensPuzzle | null = null;
   let saved: SavedQueens | null = null;
   if (resume) {
     const s = loadSaved<SavedQueens>("queens");
     if (s) {
-      puzzle = decodeQueens(s.entry as QueensPackEntry);
+      puzzle = withContentId(decodeQueens(s.entry as QueensPackEntry));
       saved = s.state;
       difficulty = s.difficulty;
     }
   }
   if (!puzzle) {
     const pack = await loadQueensPack(difficulty);
-    puzzle = pickNext(pack, loadProgress().solved[`queens-${difficulty}`] ?? [], avoid);
+    puzzle = (board ? pack.find((p) => p.id === board) : undefined) ?? pickNext(pack, loadProgress().solved[`queens-${difficulty}`] ?? [], avoid);
     if (!puzzle) throw new Error("empty pack");
   }
-  return new QueensPlay(app, difficulty, puzzle, saved);
+  const level = (loadProgress().beaten[`queens-${difficulty}`] ?? 0) + 1;
+  return new QueensPlay(app, difficulty, puzzle, saved, level);
 }
 
 class QueensPlay implements Screen {
@@ -77,6 +77,8 @@ class QueensPlay implements Screen {
     private difficulty: Difficulty,
     private puzzle: QueensPuzzle,
     saved: SavedQueens | null,
+    /** Levels beaten in this difficulty, plus one. */
+    private level: number,
   ) {
     this.game = new QueensGame(puzzle, saved);
     this.game.settings.checkMistakes = settings().checkMistakes;
@@ -114,7 +116,7 @@ class QueensPlay implements Screen {
         "header",
         { class: "topbar" },
         h("button", { class: "icon-btn", type: "button", "aria-label": "Back to menu", "data-testid": "back", onclick: () => void this.app.home() }, svgIcon(ICONS.back)),
-        h("div", { class: "title" }, h("b", null, "Queens"), h("span", null, `${DIFFICULTY_LABEL[difficulty]} · ${puzzle.n}×${puzzle.n} · Lv ${levelOf(puzzle.id)}`)),
+        h("div", { class: "title" }, h("b", null, "Queens"), h("span", null, `${DIFFICULTY_LABEL[difficulty]} · ${puzzle.n}×${puzzle.n} · Lv ${level}`)),
         this.timerEl,
         h("button", { class: "icon-btn", type: "button", "aria-label": "Menu", onclick: () => this.openMenu() }, svgIcon(ICONS.menu)),
       ),
@@ -178,7 +180,7 @@ class QueensPlay implements Screen {
 
   /** The level drops in (the style rotates level to level). Marked on the screen until it lands. */
   private enter(): void {
-    const { style, ms } = enterLevel(this.board.stage(), this.app, levelOf(this.puzzle.id));
+    const { style, ms } = enterLevel(this.board.stage(), this.app, this.level);
     this.el.dataset.entering = style.id;
     window.setTimeout(() => delete this.el.dataset.entering, ms);
   }
@@ -403,7 +405,7 @@ class QueensPlay implements Screen {
       mode: "queens",
       difficulty: this.difficulty,
       id: this.puzzle.id,
-      level: levelOf(this.puzzle.id),
+      level: this.level,
       time: g.elapsedMs,
       mistakes: g.mistakes,
       hints: g.hintsUsed,
