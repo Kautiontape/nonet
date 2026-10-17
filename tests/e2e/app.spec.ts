@@ -696,6 +696,48 @@ test("queens: a tap on the board while a hint is open only closes it", async ({ 
   await expect(cell).toHaveClass(/cross/);
 });
 
+test("pause covers the board and holds the timer until you carry on", async ({ page }) => {
+  await page.goto("/?play=classic-easy");
+  await readBoard(page);
+  const timer = page.getByTestId("timer");
+  const cover = page.getByTestId("paused");
+  await expect(timer).not.toHaveText("0:00", { timeout: 3000 });
+  // From the game menu.
+  await page.getByRole("button", { name: "Menu", exact: true }).click();
+  await page.locator(".menu-item", { hasText: "Pause" }).click();
+  await expect(cover).toBeVisible();
+  const held = (await timer.textContent())!;
+  await expect(cover).toContainText(held);
+  await page.waitForTimeout(2500);
+  await expect(timer).toHaveText(held);
+  await page.screenshot({ path: "test-results/screens/paused.png" });
+  await cover.click(); // a tap anywhere
+  await expect(cover).toHaveCount(0);
+  await expect(timer).not.toHaveText(held, { timeout: 3000 });
+  // From the timer itself, which is also the pause button.
+  await page.getByTestId("pause").click();
+  await expect(cover).toBeVisible();
+  await page.getByTestId("resume").click();
+  await expect(cover).toHaveCount(0);
+  // P pauses, and Esc carries on without stepping back in the game too.
+  await cellLocator(page, 40).click();
+  await page.keyboard.press("p");
+  await expect(cover).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(cover).toHaveCount(0);
+  await expect(cellLocator(page, 40)).toHaveClass(/\bsel\b/);
+  // Queens pauses from its timer the same way.
+  await page.goto("/?play=queens-easy");
+  await landed(page);
+  await page.getByTestId("pause").click();
+  await expect(cover).toBeVisible();
+  const queensHeld = (await timer.textContent())!;
+  await page.waitForTimeout(1500);
+  await expect(timer).toHaveText(queensHeld);
+  await page.keyboard.press("Enter");
+  await expect(cover).toHaveCount(0);
+});
+
 test("learn and settings overlays open and close", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("open-learn").click();

@@ -81,7 +81,13 @@ Easy / Medium / Hard / Expert per mode, graded by the hardest technique the logi
   Queens: H, Enter, Esc, S (Scratch on / off), Ctrl/⌘+Z / Y. Bare-key shortcuts ignore
   Ctrl/⌘/Alt (those combinations stay the browser's: tabs, history, save) and held-key repeats
   (except arrows and erase). A solved puzzle can't be undone. Clicking a control doesn't leave
-  focus on it, so Space / Enter never re-press it.
+  focus on it, so Space / Enter never re-press it. P pauses, in every mode.
+- **Pause**: the timer in the top bar is also the pause button (a faint ⏸ after the time, the
+  glyph alone when the timer is hidden); the game menu has Pause at the top, and P works on a
+  keyboard. A near-opaque frosted cover hides the board (paused time can't be thinking time),
+  shows PAUSED, a breathing ring and the time it stopped at; the timer holds, the game is saved
+  and the music fades. A tap anywhere, Resume, Esc, Enter, Space or P carries on. Not offered
+  once the puzzle is solved.
 - Games autosave per mode; "Continue" on the home screen resumes.
 
 ### Mistakes that teach

@@ -8,6 +8,7 @@ import { loadQueensPack, pickNext } from "../../game/packs";
 import { QueensGame, type QueensEvent, type SavedQueens } from "../../game/queens-game";
 import { clearSaved, loadSaved, storeSaved, type App, type Screen } from "../app";
 import { HintSheet } from "../components/hint-sheet";
+import { openPause, timerButton } from "../components/pause";
 import { QueensBoard } from "../components/queens-board";
 import { showResult } from "../components/result-banner";
 import { clearToast, toast } from "../components/toast";
@@ -95,7 +96,8 @@ class QueensPlay implements Screen {
       onRef: (name) => this.board.flashRef(name),
     });
     this.sheet.dismissOn(this.board.el);
-    this.timerEl = h("div", { class: "timer" });
+    const timer = timerButton(() => this.pause());
+    this.timerEl = timer.time;
     this.progressEl = h("i");
     this.statsEl = h("div", { class: "stats" });
     const btn = (key: string, icon: string, label: string, onclick: () => void, extra = "") =>
@@ -115,7 +117,7 @@ class QueensPlay implements Screen {
         { class: "topbar" },
         h("button", { class: "icon-btn", type: "button", "aria-label": "Back to menu", "data-testid": "back", onclick: () => void this.app.home() }, svgIcon(ICONS.back)),
         h("div", { class: "title" }, h("b", null, "Queens"), h("span", null, `${DIFFICULTY_LABEL[difficulty]} · ${puzzle.n}×${puzzle.n} · Lv ${levelOf(puzzle.id)}`)),
-        this.timerEl,
+        timer.el,
         h("button", { class: "icon-btn", type: "button", "aria-label": "Menu", onclick: () => this.openMenu() }, svgIcon(ICONS.menu)),
       ),
       h("div", { class: "progress" }, this.progressEl),
@@ -157,6 +159,7 @@ class QueensPlay implements Screen {
         this.sheet.primary();
       } else if (k === "h" || k === "H") this.sheet.isOpen ? this.sheet.advance() : this.openHint();
       else if (k === "s" || k === "S") this.toggleScratch();
+      else if (k === "p" || k === "P") this.pause();
     };
     addEventListener("keydown", onKey);
     this.offs.push(() => removeEventListener("keydown", onKey));
@@ -458,6 +461,13 @@ class QueensPlay implements Screen {
     if (Math.round(this.game.elapsedMs / 1000) % 5 === 0) this.save();
   }
 
+  /** The cover goes up and the timer holds. Saved first, in case they don't come back. */
+  private pause(): void {
+    if (this.game.solved) return;
+    this.save();
+    openPause(settings().showTimer ? formatTime(this.game.elapsedMs) : null);
+  }
+
   private save(): void {
     if (this.game.solved || this.discard) return;
     storeSaved("queens", { difficulty: this.difficulty, entry: encodeQueens(this.puzzle), state: this.game.toJSON() });
@@ -479,6 +489,7 @@ class QueensPlay implements Screen {
       h(
         "div",
         { class: "menu-panel" },
+        !this.game.solved && item("Pause", ICONS.pause, () => this.pause()),
         item("New puzzle", ICONS.next, () => void this.app.play("queens", this.difficulty, false, this.puzzle.id)),
         item("Restart this puzzle", ICONS.restart, () => {
           this.discard = true;

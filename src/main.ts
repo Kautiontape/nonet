@@ -56,7 +56,7 @@ window.addEventListener(
 addEventListener(
   "mousedown",
   (e: MouseEvent) => {
-    if ((e.target as Element | null)?.closest?.(".tool, .num, .icon-btn, .qchip, .lens-btn, .lens-chip, .hs-actions .btn")) e.preventDefault();
+    if ((e.target as Element | null)?.closest?.(".tool, .num, .icon-btn, .timer-btn, .qchip, .lens-btn, .lens-chip, .hs-actions .btn")) e.preventDefault();
   },
   { capture: true },
 );
