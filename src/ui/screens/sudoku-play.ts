@@ -102,6 +102,8 @@ class SudokuPlay implements Screen {
   private discard = false;
   /** Killer 45-rule lens: which house of the selected cell to analyse, or off. */
   private lensKind: "row" | "col" | "box" | null = null;
+  /** The combination just crossed out: its chip draws the pencil stroke once, on the next redraw. */
+  private freshStrike = 0;
 
   constructor(
     private app: App,
@@ -330,6 +332,8 @@ class SudokuPlay implements Screen {
 
   private renderCageBar(): void {
     if (!this.cageBar) return;
+    const fresh = this.freshStrike;
+    this.freshStrike = 0;
     // Cells picked across two or more cages: those cages' total, and their outlines lit.
     const tally = this.lensKind ? null : cageTally(this.puzzle.cages, this.multi, this.game.grid);
     this.board.setTally(tally?.cages.map((k) => k.id) ?? []);
@@ -353,8 +357,26 @@ class SudokuPlay implements Screen {
     const shared = CELL_HOUSES[cage.cells[0]!]!.filter((hh) => cage.cells.every((c) => CELL_HOUSES[c]!.includes(hh)));
     let blocked = 0;
     for (const hh of shared) for (const c of HOUSE_CELLS[hh]!) if (!cage.cells.includes(c) && this.game.grid[c]) blocked |= 1 << this.game.grid[c]!;
-    const chips = v.combos.map((m) => h("span", { class: `combo${m & blocked ? " out" : ""}` }, comboText(m)));
-    const must = v.combos.filter((m) => !(m & blocked)).reduce((a, m) => a & m, 0x3fe);
+    // A tap crosses a combination out (or back in) in pencil; one the game has struck shakes its head.
+    const chips = v.combos.map((m) => {
+      const out = (m & blocked) !== 0;
+      const mine = !out && this.game.isStruck(cage, m);
+      return h(
+        "button",
+        {
+          class: `combo${out ? " out" : mine ? ` struck${m === fresh ? " fresh" : ""}` : ""}`,
+          type: "button",
+          "aria-pressed": String(mine),
+          "aria-disabled": out && "true",
+          "data-testid": "combo",
+          onclick: (e: MouseEvent) => (out ? this.refuseCombo(e.currentTarget as HTMLElement) : this.game.toggleStrike(cage, m)),
+        },
+        comboText(m),
+      );
+    });
+    // What every combination still standing needs: the game's strikes and the player's both count.
+    const live = v.combos.filter((m) => !(m & blocked) && !this.game.isStruck(cage, m));
+    const must = live.reduce((a, m) => a & m, 0x3fe);
     const parts: HTMLElement[] = [
       lensBtn,
       h("b", null, `${cage.sum}`),
@@ -366,8 +388,17 @@ class SudokuPlay implements Screen {
       ...chips.slice(0, 12),
     ];
     if (chips.length > 12) parts.push(h("span", { class: "dim" }, `+${chips.length - 12}`));
-    if (v.empty.length && digitsOf(must).length && v.combos.length > 1) parts.push(h("span", { class: "must" }, `needs ${digitsOf(must).join(",")}`));
+    if (v.empty.length && live.length && digitsOf(must).length && v.combos.length > 1) parts.push(h("span", { class: "must" }, `needs ${digitsOf(must).join(",")}`));
     this.cageBar.replaceChildren(...parts);
+  }
+
+  /** The game already ruled this combination out: a little shake, nothing to strike. */
+  private refuseCombo(chip: HTMLElement): void {
+    chip.classList.remove("refuse");
+    chip.getBoundingClientRect(); // flush styles so a second tap shakes again
+    chip.classList.add("refuse");
+    chip.addEventListener("animationend", () => chip.classList.remove("refuse"), { once: true });
+    buzz("tap");
   }
 
   private setLens(kind: "row" | "col" | "box" | null): void {
@@ -643,6 +674,11 @@ class SudokuPlay implements Screen {
       }
       case "note":
         sound.note(e.digit, e.on);
+        break;
+      case "strike":
+        if (e.on) this.freshStrike = e.combo;
+        sound.cross();
+        buzz("note");
         break;
       case "erase":
         sound.erase();

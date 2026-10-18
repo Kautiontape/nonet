@@ -3,6 +3,10 @@
 What's new in Nonet, newest first. The app shows this file under Settings → Changelog, so it is
 written for players. Read `docs/CHANGELOG-STYLE.md` before adding to it.
 
+## Unreleased
+
+- **Cross out cage combinations.** In killer, tap a combination under the board to pencil it out, and "needs" counts only the ones left; tap again to bring it back.
+
 ## 0.4.0 — 2026-10-17
 
 - **Pause a game.** Tap the timer, or Pause in the game menu, to stop the clock and cover the board until you're back.

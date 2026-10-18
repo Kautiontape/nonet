@@ -1,11 +1,11 @@
 import { readFileSync } from "node:fs";
 import { comboCandidates } from "../../src/engine/candidates";
-import { maskOf } from "../../src/engine/combos";
+import { bit, cageCombos, maskOf } from "../../src/engine/combos";
 import { cellName } from "../../src/engine/geometry";
 import { hintMarks, type SudokuHint } from "../../src/engine/hints/index";
 import { decodeSudoku, type SudokuPackEntry } from "../../src/engine/pack";
 import type { Digit, Puzzle, Step } from "../../src/engine/types";
-import { SudokuGame, type GameEvent } from "../../src/game/sudoku-game";
+import { SudokuGame, type GameEvent, type SavedSudoku } from "../../src/game/sudoku-game";
 import { cage, cell, classic } from "../engine/helpers";
 
 const WIKI = classic(
@@ -283,6 +283,74 @@ describe("SudokuGame", () => {
     expect(h.grid[cell("r1c3")]).toBe(4);
     expect(h.notes[cell("r1c4")]).toBe(maskOf([6]));
     expect(h.elapsedMs).toBe(12345);
+  });
+});
+
+describe("crossing out cage combinations", () => {
+  const p = packPuzzle("killer-easy", 0);
+  // A cage with no givens and a choice of combinations.
+  const fresh = new SudokuGame(p);
+  const k = p.cages.find((c) => c.cells.every((x) => !fresh.grid[x]) && cageCombos(c.cells.length, c.sum).length >= 2)!;
+  const [first, second] = cageCombos(k.cells.length, k.sum) as [number, number];
+
+  it("crosses a combination out and back in, each an undo step of its own", () => {
+    const g = new SudokuGame(p);
+    const events = track(g);
+    g.toggleStrike(k, first);
+    expect(g.isStruck(k, first)).toBe(true);
+    expect(g.isStruck(k, second)).toBe(false);
+    expect(events).toContainEqual({ type: "strike", cage: k.id, combo: first, on: true });
+    g.toggleStrike(k, first);
+    expect(g.isStruck(k, first)).toBe(false);
+    expect(events).toContainEqual({ type: "strike", cage: k.id, combo: first, on: false });
+    g.undo();
+    expect(g.isStruck(k, first)).toBe(true);
+    g.undo();
+    expect(g.isStruck(k, first)).toBe(false);
+    expect(g.canUndo()).toBe(false);
+    g.redo();
+    expect(g.isStruck(k, first)).toBe(true);
+  });
+
+  it("a strike is the whole cage's digits, so it still holds once one of them is placed, and after it's erased", () => {
+    const g = new SudokuGame(p);
+    const c = k.cells[0]!;
+    const d = g.solution[c]! as Digit;
+    const whole = cageCombos(k.cells.length, k.sum).find((m) => m & bit(d))!;
+    g.toggleStrike(k, whole);
+    g.place(c, d);
+    // The bar now lists combinations for the squares left: the struck one without the placed digit.
+    expect(g.isStruck(k, whole & ~bit(d))).toBe(true);
+    g.erase(c);
+    expect(g.isStruck(k, whole)).toBe(true);
+  });
+
+  it("Clear notes clears strikes too, and undo brings them back", () => {
+    const g = new SudokuGame(p);
+    g.toggleStrike(k, first);
+    g.toggleStrike(k, second);
+    g.clearNotes();
+    expect(g.isStruck(k, first) || g.isStruck(k, second)).toBe(false);
+    g.undo();
+    expect(g.isStruck(k, first) && g.isStruck(k, second)).toBe(true);
+  });
+
+  it("are saved with the game; a save from before strikes loads with none", () => {
+    const g = new SudokuGame(p);
+    g.toggleStrike(k, second);
+    const saved = JSON.parse(JSON.stringify(g.toJSON())) as SavedSudoku;
+    const h = new SudokuGame(p, saved);
+    expect(h.isStruck(k, second)).toBe(true);
+    expect(h.isStruck(k, first)).toBe(false);
+    delete saved.struck;
+    expect(new SudokuGame(p, saved).isStruck(k, second)).toBe(false);
+  });
+
+  it("a solved puzzle takes no strikes", () => {
+    const g = new SudokuGame(p);
+    g.solved = true;
+    g.toggleStrike(k, first);
+    expect(g.isStruck(k, first)).toBe(false);
   });
 });
 

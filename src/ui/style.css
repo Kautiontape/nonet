@@ -542,6 +542,7 @@ button:disabled {
   gap: 6px;
   flex-wrap: nowrap;
   overflow-x: auto;
+  overflow-y: hidden;
   scrollbar-width: none;
   min-height: 34px;
   padding: 6px 4px 0;
@@ -565,17 +566,76 @@ button:disabled {
 }
 
 .cage-bar .combo {
+  position: relative;
+  flex: none;
   padding: 2px 7px;
   border-radius: 8px;
   background: var(--glass);
   border: 1px solid var(--line);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
+  transition: color 0.15s, border-color 0.15s;
 }
 
+/* The chips are short: the tap reaches up and down the bar, which clips it. */
+.cage-bar .combo::before {
+  content: "";
+  position: absolute;
+  inset: -12px -3px;
+}
+
+/* Ruled out by the game: grey, a plain line through the digits. */
 .cage-bar .combo.out {
   opacity: 0.35;
   text-decoration: line-through;
+}
+
+/* Tapping one of those: a small head-shake, and it greys a touch further for a moment. */
+.cage-bar .combo.refuse {
+  animation: shake 0.4s, refuse-dim 0.4s;
+}
+
+@keyframes refuse-dim {
+  35% {
+    opacity: 0.22;
+    filter: grayscale(1);
+  }
+}
+
+/* Crossed out by the player: muted, with a pencilled slash across the whole chip in the notes accent. */
+.cage-bar .combo.struck {
+  color: color-mix(in srgb, var(--ink) 40%, transparent);
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--a2) 35%, transparent);
+  background: transparent;
+}
+
+.cage-bar .combo.struck::after {
+  content: "";
+  position: absolute;
+  left: -2px;
+  right: -2px;
+  top: calc(50% - 1px);
+  height: 2px;
+  border-radius: 1px;
+  background: repeating-linear-gradient(90deg, var(--a2) 0 6px, transparent 6px 9px);
+  filter: drop-shadow(0 0 3px var(--a2));
+  transform: rotate(-12deg);
+  pointer-events: none;
+}
+
+/* Only as it's struck (a redraw of the bar doesn't replay it): the pencil draws across. */
+.cage-bar .combo.struck.fresh::after {
+  animation: strike-draw 0.2s ease-out;
+}
+
+@keyframes strike-draw {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
 }
 
 .lens-btn,

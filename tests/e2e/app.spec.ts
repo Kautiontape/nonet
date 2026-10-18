@@ -506,6 +506,67 @@ test("killer: cells picked across cages show those cages' total, each cage once,
   await expect(page.locator(".cage.tallied")).toHaveCount(0);
 });
 
+test("killer: tap a cage combination to cross it out in pencil; one the game ruled out only shakes", async ({ page }) => {
+  await page.goto("/?play=killer-easy");
+  const board = await readBoard(page);
+  const sums = new Map(await page.$$eval(".sum[data-cage]", (els) => els.map((el) => [(el as HTMLElement).dataset.cage!, Number(el.textContent)] as const)));
+  // An empty two-square cage along a row with at least three combinations (sum 7 to 13), and
+  // another empty square in that row to rule one of them out from.
+  const cages = new Map<string, typeof board>();
+  for (const x of board) if (x.cage) cages.set(x.cage, [...(cages.get(x.cage) ?? []), x]);
+  const pair = [...cages.values()].find(
+    (cs) =>
+      cs.length === 2 &&
+      cs[0]!.r === cs[1]!.r &&
+      cs.every((x) => !x.value) &&
+      sums.get(cs[0]!.cage!)! >= 7 &&
+      sums.get(cs[0]!.cage!)! <= 13 &&
+      board.some((x) => x.r === cs[0]!.r && !x.value && x.cage !== cs[0]!.cage),
+  );
+  test.skip(!pair, "no empty two-square row cage in this puzzle");
+  const [a] = pair!;
+  const other = board.find((x) => x.r === a!.r && !x.value && x.cage !== a!.cage)!;
+  const chips = page.getByTestId("combo");
+  await cellLocator(page, a!.cell).click();
+  const texts = await chips.allInnerTexts();
+  expect(texts.length).toBeGreaterThanOrEqual(3);
+  expect(await page.locator(".cage-bar .combo.out").count()).toBe(0);
+
+  // A digit of the first combination elsewhere in the row: the game strikes that one itself.
+  await cellLocator(page, other.cell).click();
+  await digitKey(page, Number(texts[0]!.split("+")[0])).click();
+  await cellLocator(page, a!.cell).click();
+  const ruled = chips.filter({ hasText: texts[0]! });
+  await expect(ruled).toHaveClass(/\bout\b/);
+  // Tapping it doesn't strike it: it shakes its head. (It's aria-disabled, so Playwright needs force.)
+  await ruled.click({ force: true });
+  await expect(ruled).toHaveClass(/\brefuse\b/);
+  await expect(ruled).toHaveAttribute("aria-pressed", "false");
+
+  // The others cross out in pencil. Leave one standing and "needs" names its digits.
+  const live = texts.slice(1);
+  for (const t of live.slice(0, -1)) await chips.filter({ hasText: t }).click();
+  for (const t of live.slice(0, -1)) await expect(chips.filter({ hasText: t })).toHaveAttribute("aria-pressed", "true");
+  const last = live[live.length - 1]!;
+  await expect(chips.filter({ hasText: last })).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator(".cage-bar .must")).toHaveText(`needs ${last.split("+").join(",")}`);
+  await page.screenshot({ path: "test-results/screens/combo-strike.png" });
+
+  // A strike is a move like any other: undo takes the latest back.
+  const undone = live[live.length - 2]!;
+  await page.getByTestId("tool-undo").click();
+  await expect(chips.filter({ hasText: undone })).toHaveAttribute("aria-pressed", "false");
+  await chips.filter({ hasText: undone }).click();
+
+  // And it's kept with the game.
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("cagecoach.game.killer") ?? "")).toMatch(/"struck":\[\d/);
+  await page.goto("/");
+  await page.getByTestId("resume-killer").click();
+  await readBoard(page);
+  await cellLocator(page, a!.cell).click();
+  for (const t of live.slice(0, -1)) await expect(chips.filter({ hasText: t })).toHaveAttribute("aria-pressed", "true");
+});
+
 test("killer: a hint goes straight for a digit and places it", async ({ page }) => {
   await page.goto("/?play=killer-easy");
   await landed(page);
