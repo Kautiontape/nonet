@@ -243,6 +243,11 @@ marks anything (all three modes).
   Killer, Queens and Data (backup); `prefers-reduced-motion` honoured. Under the tabs, the
   version and a Changelog link that opens `CHANGELOG.md` in a modal (Unreleased shows as "Next
   release" except in a release build).
+- What's new: after an update, a player who has played before sees Settings on the home screen
+  glow with a "!" badge, and the Changelog link glow with a "New" pill; the sections since they
+  last looked are tagged New. Opening the changelog clears it. A first visit notes the release
+  quietly. The mark (`seenRelease`) is the newest release heading seen, kept per device (not
+  synced), and only moves forward. `?whatsnew` forces it for one visit, to try on the beta.
 
 ---
 

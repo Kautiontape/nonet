@@ -1059,6 +1059,46 @@ test("settings shows the version; Changelog opens over it and Esc closes only th
   await expect(settingsSheet).toHaveCount(0);
 });
 
+test("after an update, Settings and its Changelog glow for someone who has played, until the changelog is opened", async ({ page }) => {
+  const settingsBtn = page.getByTestId("open-settings");
+  const link = page.getByTestId("settings").getByTestId("open-changelog");
+  // A first visit: nothing is new to a new player.
+  await page.goto("/");
+  await expect(settingsBtn).toBeVisible();
+  await expect(settingsBtn).not.toHaveClass(/\bnews\b/);
+  // Someone who played before this release was noted (as everyone has, the day this ships).
+  await page.evaluate(() => {
+    localStorage.setItem("cagecoach.game.killer", JSON.stringify({ clearedAt: 1 }));
+    localStorage.removeItem("cagecoach.seenRelease");
+  });
+  await page.reload();
+  await expect(settingsBtn).toHaveClass(/\bnews\b/);
+  await expect(settingsBtn.locator(".news-badge")).toBeVisible();
+  await page.screenshot({ path: "test-results/screens/whats-new-home.png" });
+  await settingsBtn.click();
+  await expect(link).toHaveClass(/\bnews\b/);
+  await expect(link.locator(".news-pill")).toBeVisible();
+  await page.screenshot({ path: "test-results/screens/whats-new-settings.png" });
+  await link.click();
+  const log = page.getByTestId("changelog");
+  // With no mark to go by, the newest section is tagged (here, a local build, it's Next release).
+  await expect(log.locator("section").first()).toHaveClass(/\bnew\b/);
+  await expect(log.locator("section.new .news-pill")).toHaveText("New");
+  await page.keyboard.press("Escape");
+  await expect(log).toHaveCount(0);
+  await expect(link).not.toHaveClass(/\bnews\b/);
+  await page.keyboard.press("Escape");
+  await expect(settingsBtn).not.toHaveClass(/\bnews\b/);
+  // Seen is remembered.
+  await page.reload();
+  await expect(settingsBtn).toBeVisible();
+  await expect(settingsBtn).not.toHaveClass(/\bnews\b/);
+  // ?whatsnew shows it anyway, for one visit, and leaves the address clean.
+  await page.goto("/?whatsnew");
+  await expect(settingsBtn).toHaveClass(/\bnews\b/);
+  expect(new URL(page.url()).search).toBe("");
+});
+
 test("on a narrow phone the settings tabs scroll sideways; the page itself never does", async ({ page }) => {
   await page.setViewportSize({ width: 340, height: 720 });
   await page.goto("/");

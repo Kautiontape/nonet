@@ -8,6 +8,7 @@ import { DIFFICULTY_LABEL } from "../messages";
 import { THEMES } from "../palette";
 import { sound } from "../sound";
 import { load, loadProgress } from "../store";
+import { hasNews, onWhatsNew } from "../whats-new";
 import { openLearn } from "./learn";
 import { openScores } from "./scores";
 import { openSettings } from "./settings-sheet";
@@ -99,6 +100,22 @@ export function createHome(app: App): Screen {
 
   const streak = progress.streak.days > 1 ? h("div", { class: "streak" }, `${progress.streak.days}-day streak`) : null;
 
+  // After an update it glows, with a badge, until the changelog is opened.
+  const settingsBtn = h(
+    "button",
+    { class: "btn ghost", type: "button", "data-testid": "open-settings", onclick: () => openSettings() },
+    svgIcon(ICONS.gear),
+    "Settings",
+    h("i", { class: "news-badge", "aria-hidden": "true" }, "!"),
+  );
+  const showNews = () => {
+    settingsBtn.classList.toggle("news", hasNews());
+    if (hasNews()) settingsBtn.setAttribute("aria-label", "Settings: there's a new version");
+    else settingsBtn.removeAttribute("aria-label");
+  };
+  showNews();
+  const offNews = onWhatsNew(showNews);
+
   const el = h(
     "main",
     { class: "screen home" },
@@ -115,7 +132,7 @@ export function createHome(app: App): Screen {
       { class: "home-foot" },
       h("button", { class: "btn ghost", type: "button", "data-testid": "open-learn", onclick: () => openLearn() }, svgIcon(ICONS.book), "Learn"),
       h("button", { class: "btn ghost", type: "button", "data-testid": "open-scores", onclick: () => openScores() }, svgIcon(ICONS.trophy), "Scores"),
-      h("button", { class: "btn ghost", type: "button", "data-testid": "open-settings", onclick: () => openSettings() }, svgIcon(ICONS.gear), "Settings"),
+      settingsBtn,
     ),
   );
   // Open the most recently played mode's card so "Continue" is one tap away.
@@ -125,5 +142,5 @@ export function createHome(app: App): Screen {
     open = recent.mode;
     cards.get(recent.mode)!.classList.add("open");
   }
-  return { el, destroy: () => {} };
+  return { el, destroy: offNews };
 }

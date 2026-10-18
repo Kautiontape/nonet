@@ -3,6 +3,7 @@ import { boldParts, changelog, versionLabel, type Release } from "../changelog";
 import { h, svgIcon } from "../dom";
 import { ICONS } from "../icons";
 import { sound } from "../sound";
+import { markSeen, newSections } from "../whats-new";
 
 function heading(r: Release): string {
   if (!r.version) return "Next release";
@@ -13,6 +14,8 @@ function heading(r: Release): string {
 export function openChangelog(): void {
   sound.ui("open");
   const releases = changelog();
+  // Releases since the player last looked get a tag; opening the changelog is the look.
+  const tagged = newSections(releases.map((r) => r.version));
   const close = () => {
     sound.ui("close");
     overlay.classList.add("closing");
@@ -43,11 +46,11 @@ export function openChangelog(): void {
         { class: "changelog-list" },
         h("p", { class: "changelog-version" }, versionLabel()),
         ...(releases.length
-          ? releases.map((r) =>
+          ? releases.map((r, i) =>
               h(
                 "section",
-                { "data-version": r.version ?? "unreleased" },
-                h("h3", null, heading(r)),
+                { "data-version": r.version ?? "unreleased", class: tagged[i] ? "new" : undefined },
+                h("h3", null, heading(r), tagged[i] ? h("span", { class: "news-pill" }, "New") : null),
                 h("ul", null, ...r.items.map((item) => h("li", null, ...boldParts(item).map((part, i) => (i % 2 ? h("b", null, part) : part))))),
               ),
             )
@@ -56,4 +59,5 @@ export function openChangelog(): void {
     ),
   );
   document.body.append(overlay);
+  markSeen();
 }

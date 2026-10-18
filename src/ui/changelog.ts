@@ -39,6 +39,11 @@ export function boldParts(item: string): string[] {
   return item.split(/\*\*(.+?)\*\*/);
 }
 
+/** The newest release the changelog names ("1.0.0"); Unreleased isn't one. Null before the first. */
+export function latestRelease(text = changelogText): string | null {
+  return parseChangelog(text).find((r) => r.version)?.version ?? null;
+}
+
 /** This build's `git describe`: "v0.1.0" at a release, "v0.1.0-3-gabc1234" past one. */
 export const VERSION = __APP_VERSION__;
 

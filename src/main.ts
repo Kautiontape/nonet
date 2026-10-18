@@ -16,6 +16,7 @@ import { createSudokuPlay } from "./ui/screens/sudoku-play";
 import { audio } from "./ui/audio/synth";
 import { connectSound, sound } from "./ui/sound";
 import { startSync, SYNC_AVAILABLE } from "./ui/sync";
+import { initWhatsNew } from "./ui/whats-new";
 
 connectSound(audio);
 
@@ -72,6 +73,14 @@ if (import.meta.env.PROD && import.meta.env.VITE_TARGET !== "artifact" && "servi
 // board (handy for sharing and for tests).
 const params = new URLSearchParams(location.search);
 const play = params.get("play");
+// After an update, Settings and its Changelog glow for someone who has played before; ?whatsnew
+// forces it for this visit (to try it on the beta).
+initWhatsNew(params.has("whatsnew"));
+if (params.has("whatsnew")) {
+  params.delete("whatsnew");
+  const rest = params.toString();
+  history.replaceState(null, "", location.pathname + (rest ? `?${rest}` : ""));
+}
 // Settings loads the page with ?restored after restoring a backup.
 if (params.has("restored")) {
   history.replaceState(null, "", location.pathname);

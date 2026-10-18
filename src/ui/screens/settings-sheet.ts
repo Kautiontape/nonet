@@ -8,6 +8,7 @@ import { onSettings, settings, updateSettings, type EffectsLevel, type Settings 
 import { sound } from "../sound";
 import { backupSolved, makeBackup, parseBackup, restoreBackup, todayKey, type Backup } from "../store";
 import { SYNC_AVAILABLE, syncClient, syncCode } from "../sync";
+import { hasNews } from "../whats-new";
 import { openChangelog } from "./changelog";
 
 type BoolKey = { [K in keyof Settings]: Settings[K] extends boolean ? K : never }[keyof Settings];
@@ -84,6 +85,23 @@ export function openSettings(opts: SettingsOptions = {}): void {
   };
   const onKey = (e: KeyboardEvent) => e.key === "Escape" && close();
   addEventListener("keydown", onKey);
+  // After an update the way in to the changelog glows, until it's opened.
+  const changelogLink = h(
+    "button",
+    {
+      class: `link-btn${hasNews() ? " news" : ""}`,
+      type: "button",
+      "data-testid": "open-changelog",
+      "aria-label": hasNews() ? "Changelog: new version" : undefined,
+      onclick: () => {
+        openChangelog();
+        changelogLink.classList.remove("news");
+        changelogLink.removeAttribute("aria-label");
+      },
+    },
+    "Changelog",
+    h("span", { class: "news-pill", "aria-hidden": "true" }, "New"),
+  );
   const overlay = h(
     "div",
     { class: "overlay settings", role: "dialog", "aria-label": "Settings", "data-testid": "settings" },
@@ -94,7 +112,7 @@ export function openSettings(opts: SettingsOptions = {}): void {
       "footer",
       { class: "settings-foot" },
       h("span", { "data-testid": "version" }, versionLabel()),
-      h("button", { class: "link-btn", type: "button", "data-testid": "open-changelog", onclick: () => openChangelog() }, "Changelog"),
+      changelogLink,
     ),
   );
   show(opts.tab ?? "sound");

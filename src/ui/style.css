@@ -3194,7 +3194,9 @@ body:has(.result:not(.out)) .play :is(.topbar, .progress, .stats) {
 [data-effects="low"] .pause-orb,
 [data-effects="low"] .pause-orb::before,
 [data-effects="low"] .pause-orb i,
-[data-effects="low"] .pause-word {
+[data-effects="low"] .pause-word,
+[data-effects="low"] .btn.news,
+[data-effects="low"] .link-btn.news {
   animation: none;
 }
 
@@ -3317,4 +3319,70 @@ body:has(.result:not(.out)) .play :is(.topbar, .progress, .stats) {
 
 .changelog-list li b {
   color: var(--ink);
+}
+
+/* What's new: after an update, Settings on the home screen glows with a badge, and so does the
+   Changelog link inside it, until the changelog is opened. The glow holds still under reduced
+   motion; only the pulse goes. */
+.btn.news {
+  position: relative;
+  color: var(--ink);
+  border-color: color-mix(in srgb, var(--a1) 55%, transparent);
+  box-shadow: 0 0 18px -4px color-mix(in srgb, var(--a1) 80%, transparent);
+  animation: news-glow 2.4s ease-in-out infinite;
+}
+
+@keyframes news-glow {
+  50% {
+    box-shadow: 0 0 28px -2px color-mix(in srgb, var(--a1) 95%, transparent);
+  }
+}
+
+.news-badge,
+.news-pill {
+  display: none;
+}
+
+.btn.news .news-badge {
+  position: absolute;
+  top: -7px;
+  right: -5px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--a3);
+  box-shadow: 0 0 10px var(--a3);
+  color: #04050d;
+  font-size: 12px;
+  font-weight: 800;
+  font-style: normal;
+}
+
+.link-btn.news {
+  text-shadow: 0 0 10px var(--a1);
+  animation: news-text 2.4s ease-in-out infinite;
+}
+
+@keyframes news-text {
+  50% {
+    text-shadow: 0 0 16px var(--a1), 0 0 4px var(--a1);
+  }
+}
+
+.link-btn.news .news-pill,
+.changelog-list .news-pill {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--a3);
+  color: #04050d;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-shadow: none;
+  text-transform: uppercase;
+  vertical-align: 1px;
 }

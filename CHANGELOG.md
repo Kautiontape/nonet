@@ -7,6 +7,7 @@ written for players. Read `docs/CHANGELOG-STYLE.md` before adding to it.
 
 - **New puzzles.** Every mode and difficulty has 100 new boards, each graded by the steps it takes to solve, with an easier one or a stretch now and then.
 - **Your level keeps counting.** Every puzzle you finish adds one, replays included, across all your synced devices, starting from the levels you'd already solved.
+- **See what's new.** After an update, Settings and its Changelog glow until you've had a look.
 - Fixed: a puzzle you left with New puzzle came back right after your next solve; puzzles now come in random order.
 
 ## 0.4.1 — 2026-10-18
