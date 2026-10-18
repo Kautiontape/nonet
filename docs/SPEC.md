@@ -58,7 +58,10 @@ in §4.
   readable, 4.5:1 or better) elsewhere; your own notes are warm, auto notes cool.
 - Digit pad shows how many of each digit remain; finished digits dim.
 - Killer: a cage bar lists the selected cage's combinations, striking out ones that clash with
-  digits already placed in a house the cage lives in (setting). Its **Σ45 lens** works the 45 rule
+  digits already placed in a house the cage lives in (setting). Tap a combination to cross it
+  out yourself in pencil (again to restore it); one the bar already struck shakes instead. The
+  player's strikes are notes: saved, undoable, wiped by Clear notes, left out of "needs", and
+  never read by hints or Auto notes. Its **Σ45 lens** works the 45 rule
   for the selected cell's row, column or box: it writes the equation and rings the innies or
   outies on the board (the calculator's Region mode). Select cells across two or more cages and
   the bar adds those cages up instead — "54 = 11 + 12 + 12 + 19 in 11 cells", each cage once
@@ -84,7 +87,13 @@ in §4.
   Queens: H, Enter, Esc, S (Scratch on / off), Ctrl/⌘+Z / Y. Bare-key shortcuts ignore
   Ctrl/⌘/Alt (those combinations stay the browser's: tabs, history, save) and held-key repeats
   (except arrows and erase). A solved puzzle can't be undone. Clicking a control doesn't leave
-  focus on it, so Space / Enter never re-press it.
+  focus on it, so Space / Enter never re-press it. P pauses, in every mode.
+- **Pause**: the timer in the top bar is also the pause button (a faint ⏸ after the time, the
+  glyph alone when the timer is hidden); the game menu has Pause at the top, and P works on a
+  keyboard. A near-opaque frosted cover hides the board (paused time can't be thinking time),
+  shows PAUSED, a breathing ring and the time it stopped at; the timer holds, the game is saved
+  and the music fades. A tap anywhere, Resume, Esc, Enter, Space or P carries on. Not offered
+  once the puzzle is solved.
 - Games autosave per mode; "Continue" on the home screen resumes.
 
 ### Mistakes that teach

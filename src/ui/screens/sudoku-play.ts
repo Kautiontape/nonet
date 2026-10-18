@@ -19,6 +19,7 @@ import { clearSaved, loadSaved, storeSaved, type App, type Screen } from "../app
 import { refNodes } from "../cell-refs";
 import { HintSheet, type OpenOptions } from "../components/hint-sheet";
 import { Numpad } from "../components/numpad";
+import { openPause, timerButton } from "../components/pause";
 import { SudokuBoard } from "../components/sudoku-board";
 import { showResult } from "../components/result-banner";
 import { clearToast, toast } from "../components/toast";
@@ -100,6 +101,8 @@ class SudokuPlay implements Screen {
   private discard = false;
   /** Killer 45-rule lens: which house of the selected cell to analyse, or off. */
   private lensKind: "row" | "col" | "box" | null = null;
+  /** The combination just crossed out: its chip draws the pencil stroke once, on the next redraw. */
+  private freshStrike = 0;
 
   constructor(
     private app: App,
@@ -148,7 +151,8 @@ class SudokuPlay implements Screen {
     });
     this.sheet.dismissOn(this.board.el);
 
-    this.timerEl = h("div", { class: "timer", "data-testid": "timer" });
+    const timer = timerButton(() => this.pause());
+    this.timerEl = timer.time;
     this.progressEl = h("i");
     this.statsEl = h("div", { class: "stats" });
     const title = h("div", { class: "title" }, h("b", null, MODE_LABEL[mode]!), h("span", null, `${DIFFICULTY_LABEL[difficulty]!} · Lv ${level}`));
@@ -157,7 +161,7 @@ class SudokuPlay implements Screen {
       { class: "topbar" },
       h("button", { class: "icon-btn", type: "button", "aria-label": "Back to menu", "data-testid": "back", onclick: () => void this.app.home() }, svgIcon(ICONS.back)),
       title,
-      this.timerEl,
+      timer.el,
       h("button", { class: "icon-btn", type: "button", "aria-label": "Menu", onclick: () => this.openMenu() }, svgIcon(ICONS.menu)),
     );
 
@@ -329,6 +333,8 @@ class SudokuPlay implements Screen {
 
   private renderCageBar(): void {
     if (!this.cageBar) return;
+    const fresh = this.freshStrike;
+    this.freshStrike = 0;
     // Cells picked across two or more cages: those cages' total, and their outlines lit.
     const tally = this.lensKind ? null : cageTally(this.puzzle.cages, this.multi, this.game.grid);
     this.board.setTally(tally?.cages.map((k) => k.id) ?? []);
@@ -352,8 +358,26 @@ class SudokuPlay implements Screen {
     const shared = CELL_HOUSES[cage.cells[0]!]!.filter((hh) => cage.cells.every((c) => CELL_HOUSES[c]!.includes(hh)));
     let blocked = 0;
     for (const hh of shared) for (const c of HOUSE_CELLS[hh]!) if (!cage.cells.includes(c) && this.game.grid[c]) blocked |= 1 << this.game.grid[c]!;
-    const chips = v.combos.map((m) => h("span", { class: `combo${m & blocked ? " out" : ""}` }, comboText(m)));
-    const must = v.combos.filter((m) => !(m & blocked)).reduce((a, m) => a & m, 0x3fe);
+    // A tap crosses a combination out (or back in) in pencil; one the game has struck shakes its head.
+    const chips = v.combos.map((m) => {
+      const out = (m & blocked) !== 0;
+      const mine = !out && this.game.isStruck(cage, m);
+      return h(
+        "button",
+        {
+          class: `combo${out ? " out" : mine ? ` struck${m === fresh ? " fresh" : ""}` : ""}`,
+          type: "button",
+          "aria-pressed": String(mine),
+          "aria-disabled": out && "true",
+          "data-testid": "combo",
+          onclick: (e: MouseEvent) => (out ? this.refuseCombo(e.currentTarget as HTMLElement) : this.game.toggleStrike(cage, m)),
+        },
+        comboText(m),
+      );
+    });
+    // What every combination still standing needs: the game's strikes and the player's both count.
+    const live = v.combos.filter((m) => !(m & blocked) && !this.game.isStruck(cage, m));
+    const must = live.reduce((a, m) => a & m, 0x3fe);
     const parts: HTMLElement[] = [
       lensBtn,
       h("b", null, `${cage.sum}`),
@@ -365,8 +389,17 @@ class SudokuPlay implements Screen {
       ...chips.slice(0, 12),
     ];
     if (chips.length > 12) parts.push(h("span", { class: "dim" }, `+${chips.length - 12}`));
-    if (v.empty.length && digitsOf(must).length && v.combos.length > 1) parts.push(h("span", { class: "must" }, `needs ${digitsOf(must).join(",")}`));
+    if (v.empty.length && live.length && digitsOf(must).length && v.combos.length > 1) parts.push(h("span", { class: "must" }, `needs ${digitsOf(must).join(",")}`));
     this.cageBar.replaceChildren(...parts);
+  }
+
+  /** The game already ruled this combination out: a little shake, nothing to strike. */
+  private refuseCombo(chip: HTMLElement): void {
+    chip.classList.remove("refuse");
+    chip.getBoundingClientRect(); // flush styles so a second tap shakes again
+    chip.classList.add("refuse");
+    chip.addEventListener("animationend", () => chip.classList.remove("refuse"), { once: true });
+    buzz("tap");
   }
 
   private setLens(kind: "row" | "col" | "box" | null): void {
@@ -583,6 +616,7 @@ class SudokuPlay implements Screen {
     if (k === "a" || k === "A") return this.toggleAutoNotes();
     if (k === "v" || k === "V") return this.toggleHidden();
     if (k === "h" || k === "H") return this.sheet.isOpen ? this.sheet.advance() : this.openHint();
+    if (k === "p" || k === "P") return this.pause();
     if ((k === "l" || k === "L") && this.mode === "killer") return this.setLens(LENS_CYCLE[this.lensKind ?? "off"]);
     const moves: Record<string, [number, number]> = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] };
     const mv = moves[k];
@@ -641,6 +675,11 @@ class SudokuPlay implements Screen {
       }
       case "note":
         sound.note(e.digit, e.on);
+        break;
+      case "strike":
+        if (e.on) this.freshStrike = e.combo;
+        sound.cross();
+        buzz("note");
         break;
       case "erase":
         sound.erase();
@@ -845,6 +884,13 @@ class SudokuPlay implements Screen {
     if (Math.round(this.game.elapsedMs / 1000) % 5 === 0) this.save();
   }
 
+  /** The cover goes up and the timer holds. Saved first, in case they don't come back. */
+  private pause(): void {
+    if (this.game.solved) return;
+    this.save();
+    openPause(settings().showTimer ? formatTime(this.game.elapsedMs) : null);
+  }
+
   private scheduleSave(): void {
     clearTimeout(this.saveTimer);
     this.saveTimer = window.setTimeout(() => this.save(), 250);
@@ -871,6 +917,7 @@ class SudokuPlay implements Screen {
       h(
         "div",
         { class: "menu-panel" },
+        !this.game.solved && item("Pause", ICONS.pause, () => this.pause()),
         item("New puzzle", ICONS.next, () => void this.app.play(this.mode, this.difficulty, false, this.puzzle.id)),
         item("Restart this puzzle", ICONS.restart, () => {
           this.discard = true;

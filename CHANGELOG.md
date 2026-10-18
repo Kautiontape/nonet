@@ -9,6 +9,14 @@ written for players. Read `docs/CHANGELOG-STYLE.md` before adding to it.
 - **Your level keeps counting.** Every puzzle you finish adds one, replays included, across all your synced devices, starting from the levels you'd already solved.
 - Fixed: a puzzle you left with New puzzle came back right after your next solve; puzzles now come in random order.
 
+## 0.4.1 — 2026-10-18
+
+- **Cross out cage combinations.** In killer, tap a combination under the board to pencil it out, and "needs" counts only the ones left; tap again to bring it back.
+
+## 0.4.0 — 2026-10-17
+
+- **Pause a game.** Tap the timer, or Pause in the game menu, to stop the clock and cover the board until you're back.
+
 ## 0.3.1 — 2026-10-14
 
 - Fixed: offline, a puzzle you hadn't opened before said it couldn't load. Every pack is now kept on your device after your first visit.

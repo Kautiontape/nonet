@@ -27,13 +27,19 @@ export interface Change {
 interface HistoryEntry {
   label: string;
   changes: Change[];
+  /** Combination strikes flipped (keys, see `strikeKey`): undo and redo flip them back and forth. */
+  strikes?: number[];
 }
+
+/** A crossed-out combination: the cage, and every digit the cage would hold (placed ones included). */
+const strikeKey = (cage: number, digits: number): number => (cage << 10) | digits;
 
 export type GameEvent =
   | { type: "place"; cell: CellId; digit: Digit; correct: boolean; reason?: MistakeReason; fromHint?: boolean }
   | { type: "erase"; cells: CellId[] }
   | { type: "note"; cell: CellId; digit: Digit; on: boolean }
   | { type: "notes"; cells: CellId[] }
+  | { type: "strike"; cage: number; combo: number; on: boolean }
   | { type: "complete"; cell: CellId; houses: House[]; cages: number[]; digits: Digit[] }
   | { type: "solved" }
   | { type: "history"; kind: "undo" | "redo"; cells: CellId[] };
@@ -61,6 +67,8 @@ export interface SavedSudoku {
   known?: number[];
   /** Auto-note digits the player struck out (bitmask per cell); older saves don't have it. */
   hidden?: number[];
+  /** Cage combinations the player crossed out (`strikeKey`s); older saves don't have it. */
+  struck?: number[];
 }
 
 export class SudokuGame {
@@ -74,6 +82,12 @@ export class SudokuGame {
   known: Uint16Array;
   /** Auto-note digits the player struck out: the layer leaves them out until they're unstruck or erased. */
   hidden: Uint16Array;
+  /**
+   * Cage combinations the player crossed out. Each holds the whole cage's digits, placed ones
+   * too, so a strike still means the same thing once some of its squares are filled. Only ever
+   * shown: hints, notes and the auto-note layer never read it.
+   */
+  private struck = new Set<number>();
   elapsedMs = 0;
   mistakes = 0;
   /** Hints applied (rung 4) or otherwise consumed. */
@@ -113,6 +127,7 @@ export class SudokuGame {
       this.solved = saved.solved;
       if (saved.known?.length === 81) this.known = Uint16Array.from(saved.known);
       if (saved.hidden?.length === 81) this.hidden = Uint16Array.from(saved.hidden);
+      if (saved.struck) this.struck = new Set(saved.struck);
     }
   }
 
@@ -158,15 +173,16 @@ export class SudokuGame {
   // ------------------------------------------------------------------------------------------
   // Mutations (each one is a single undoable history entry)
 
-  private commit(label: string, changes: Change[]): void {
+  private commit(label: string, changes: Change[], strikes: number[] = []): void {
     const real = changes.filter((ch) => ch.digit[0] !== ch.digit[1] || ch.notes[0] !== ch.notes[1] || (ch.hidden && ch.hidden[0] !== ch.hidden[1]));
-    if (!real.length) return;
+    if (!real.length && !strikes.length) return;
     for (const ch of real) {
       this.grid[ch.cell] = ch.digit[1];
       this.notes[ch.cell] = ch.notes[1];
       if (ch.hidden) this.hidden[ch.cell] = ch.hidden[1];
     }
-    this.undoStack.push({ label, changes: real });
+    this.flipStrikes(strikes);
+    this.undoStack.push(strikes.length ? { label, changes: real, strikes } : { label, changes: real });
     if (this.undoStack.length > 500) this.undoStack.shift();
     this.redoStack = [];
   }
@@ -353,12 +369,38 @@ export class SudokuGame {
     return base;
   }
 
-  /** Clear the player's notes and strikes everywhere, as one undo step. */
+  /**
+   * Is this combination crossed out? `combo` is the digits for the cage's empty squares, the way
+   * the cage bar lists them.
+   */
+  isStruck(cage: Cage, combo: number): boolean {
+    return this.struck.has(strikeKey(cage.id, combo | this.placedIn(cage)));
+  }
+
+  /** Cross a combination out, or back in (one undo step). `combo` is as for `isStruck`. */
+  toggleStrike(cage: Cage, combo: number): void {
+    if (this.solved) return;
+    const on = !this.isStruck(cage, combo);
+    this.commit("strike", [], [strikeKey(cage.id, combo | this.placedIn(cage))]);
+    this.emit({ type: "strike", cage: cage.id, combo, on });
+  }
+
+  private placedIn(cage: Cage): number {
+    let m = 0;
+    for (const c of cage.cells) if (this.grid[c]) m |= bit(this.grid[c]!);
+    return m;
+  }
+
+  private flipStrikes(keys: readonly number[]): void {
+    for (const k of keys) if (!this.struck.delete(k)) this.struck.add(k);
+  }
+
+  /** Clear the player's notes and strikes everywhere — combinations crossed out too — as one undo step. */
   clearNotes(): void {
     const changes: Change[] = [];
     for (let c = 0; c < 81; c++)
       if (this.notes[c] || this.hidden[c]) changes.push({ cell: c, digit: [this.grid[c]!, this.grid[c]!], notes: [this.notes[c]!, 0], hidden: [this.hidden[c]!, 0] });
-    this.commit("clear-notes", changes);
+    this.commit("clear-notes", changes, [...this.struck]);
     this.emit({ type: "notes", cells: changes.map((ch) => ch.cell) });
   }
 
@@ -372,6 +414,7 @@ export class SudokuGame {
       this.notes[ch.cell] = ch.notes[0];
       if (ch.hidden) this.hidden[ch.cell] = ch.hidden[0];
     }
+    this.flipStrikes(e.strikes ?? []);
     this.redoStack.push(e);
     this.solved = false;
     this.emit({ type: "history", kind: "undo", cells: e.changes.map((c) => c.cell) });
@@ -386,6 +429,7 @@ export class SudokuGame {
       this.notes[ch.cell] = ch.notes[1];
       if (ch.hidden) this.hidden[ch.cell] = ch.hidden[1];
     }
+    this.flipStrikes(e.strikes ?? []);
     this.undoStack.push(e);
     this.emit({ type: "history", kind: "redo", cells: e.changes.map((c) => c.cell) });
     this.checkSolved();
@@ -524,6 +568,7 @@ export class SudokuGame {
       solved: this.solved,
       known: Array.from(this.known),
       hidden: Array.from(this.hidden),
+      struck: [...this.struck],
     };
   }
 }

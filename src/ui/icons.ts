@@ -18,6 +18,9 @@ export const ICONS = {
   close: svg('<path d="M6 6l12 12M18 6L6 18"/>'),
   check: svg('<path d="M4 12l5 5L20 6"/>'),
   play: svg('<path d="M7 4l13 8-13 8z" fill="currentColor" fill-opacity=".2"/>'),
+  pause: svg('<path d="M9 5v14M15 5v14"/>'),
+  /** The pause bars with no side margin, to sit snug after the timer. */
+  pauseBars: svg('<path d="M3 3v14M9 3v14"/>', "0 0 12 20"),
   grid: svg('<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/>'),
   cage: svg('<path d="M4 4h9v7h7v9H4z" stroke-dasharray="2.4 2.2"/><text x="6.2" y="10" font-size="6" fill="currentColor" stroke="none" font-weight="700">17</text>'),
   sparkle: svg('<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>'),
