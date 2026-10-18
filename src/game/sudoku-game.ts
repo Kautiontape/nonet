@@ -503,12 +503,12 @@ export class SudokuGame {
 
   /**
    * Apply a hint's "do" rung as one undoable entry. A route applies one step at a time: this is
-   * the hint's own step (the screen moves on to the next entry). A step whose result was already
-   * in the player's notes is recorded like any other but costs no hint.
+   * the hint's own step (the screen moves on to the next entry). Steps folded into it, already in
+   * the player's notes, are remembered with it and cost nothing.
    */
   applyHint(h: SudokuHint): void {
     if (this.solved) return;
-    if (!h.already) this.hintsUsed++;
+    this.hintsUsed++;
     const pending = new Map<CellId, Change>();
     const get = (c: CellId): Change => {
       let ch = pending.get(c);
@@ -517,8 +517,9 @@ export class SudokuGame {
     };
     const placed: { cell: CellId; digit: Digit }[] = [];
     if (h.kind === "step" && h.step) {
-      // What a hint rules out is remembered for the next hint, whatever the notes say.
-      for (const e of h.step.eliminations) this.known[e.cell]! |= bit(e.digit);
+      // What a hint rules out is remembered for the next hint, whatever the notes say — and so is
+      // what the steps folded into it ruled out, which the notes show already.
+      for (const s of [...(h.folded ?? []), h.step]) for (const e of s.eliminations) this.known[e.cell]! |= bit(e.digit);
       for (const p of h.step.placements) placed.push(p);
       // A round on the way to a digit pencils in what it leaves, in the squares it marks: notes keep
       // the digits still possible. A square with none gets the hint's candidates — unless the

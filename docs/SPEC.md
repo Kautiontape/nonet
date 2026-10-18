@@ -138,8 +138,13 @@ for it.
 
 With the **auto-note layer** on, hints take what it shows as known: the layer comes from the
 rules, not from you, so no route spends a step on a cage sum you can already see. A step whose
-result your own notes already show is credited instead of re-taught: "Step 1 of 3 · already in
-your notes", a one-line Why, "Got it", and it costs no hint.
+result your own notes already show isn't taught at all: the next step's Why opens with it ("Your
+notes already show r5c3 and r6c3 can't be 5."; at most two are named, the rest counted: "…, and
+ten more steps before this one."), it costs no hint, and it doesn't count toward the three, so
+notes that run ahead of the hints get a round of steps still to learn. When the notes show every
+step before the digit, the hint is just the digit, with that line as its premise.
+The check only reads what your notes leave out, so it can't tell "only 1" from a lone 1 jotted
+down; naming the premise in the text lets you notice when it's wrong.
 
 Before any step, the hint checks, in order:
 1. **Wrong digits / queens** → "Something's off in the top-left box." … "Clear r3c4."

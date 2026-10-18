@@ -125,7 +125,9 @@ deploy/                   # the host: nginx site (source of truth), sync rate-li
   the `sel`/`peer`/`cage-peer` classes; see docs/design/2026-10-14-notes-visibility.md). With the layer on, `effectiveKnown()` adds what it rules out to `known` for
   the hint engine — sound, since the layer comes from the rules — so hints never re-teach it,
   and `visibleNotes()` (own notes plus the layer) goes in as `HintInput.visible`, used only to
-  mark a route step `already` shown.
+  leave out steps the notes already show: each one is folded into the next step taught
+  (`SudokuHint.folded`, named in its Why, added to `known` when that step is applied), and the
+  three-step cap counts only steps taught. The steps themselves still come from the board.
 
 ### Generation
 Details, measurements and the methods that lost are in `docs/generator-research.md`.

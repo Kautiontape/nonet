@@ -643,7 +643,37 @@ test("killer: a route is taught a step at a time — Apply pencils that step's s
   expect(routes).toBe(1);
 });
 
-test("queens: tap toggles ✕, double-tap makes a queen, hold clears; clashes are explained; hints solve it", async ({ page }) => {
+test("killer: a step your notes already show isn't taught — the next step's Why names it, and the round still teaches three", async ({ page }) => {
+  // On this board the first hint is a round of three toward r1c3, opening with the 17 cage at
+  // r2c4–r2c5: it can only be 8 and 9. Pencil those in and the round starts from the step after.
+  await page.goto(playUrl("killer-medium", "k0ibcn2drkrt"));
+  await readBoard(page);
+  await cellLocator(page, 12).click(); // r2c4
+  await page.getByTestId("tool-notes").click();
+  for (const cell of [12, 13]) {
+    await cellLocator(page, cell).click();
+    await digitKey(page, 8).click();
+    await digitKey(page, 9).click();
+    await expect(cellLocator(page, cell).locator(".notes i.on")).toHaveCount(2);
+  }
+  await page.getByTestId("tool-notes").click();
+  const sheet = page.getByTestId("hint-sheet");
+  await page.getByTestId("tool-hint").click();
+  await expect(sheet).toHaveClass(/open/);
+  await expect(page.getByTestId("hint-route")).toContainText("Step 1 of 3 · toward r1c3");
+  await expect(sheet.locator(".rung-1")).toContainText("No digit is certain yet.");
+  await page.getByTestId("hint-next").click(); // → what
+  await page.getByTestId("hint-next").click(); // → why
+  await expect(sheet.locator(".rung-3")).toContainText("Your notes already show r2c4 and r2c5 can only be 8 or 9.");
+  await expect(sheet.locator(".rung-3")).not.toContainText("already in your notes");
+  // The notes it names stay in view, so you can check them against the line.
+  for (const cell of [12, 13]) for (const d of [8, 9]) await expect(cellLocator(page, cell).locator(".notes i").nth(d - 1)).toBeVisible();
+  await page.getByTestId("hint-next").click(); // → apply
+  await expect(page.locator(".stats")).toContainText("Hints 1");
+  await expect(page.getByTestId("hint-route")).toContainText("Step 2 of 3 · toward r1c3");
+});
+
+test("queens:tap toggles ✕, double-tap makes a queen, hold clears; clashes are explained; hints solve it", async ({ page }) => {
   test.setTimeout(120_000);
   await page.goto(playUrl("queens-easy"));
   const cells = page.locator(".qcell");

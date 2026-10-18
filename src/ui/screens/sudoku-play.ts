@@ -813,11 +813,7 @@ class SudokuPlay implements Screen {
   private routeOptions(startRung: number): OpenOptions {
     const route = this.route;
     if (!route || this.routeTarget === null) return {};
-    const already = !!route[this.routeAt]!.already;
-    return {
-      startRung: already ? 3 : startRung, // already in the notes: straight to the one-line why
-      route: { step: this.routeAt + 1, of: route.length, target: cellName(this.routeTarget), already },
-    };
+    return { startRung, route: { step: this.routeAt + 1, of: route.length, target: cellName(this.routeTarget) } };
   }
 
   private onRung(r: number): void {
@@ -842,13 +838,13 @@ class SudokuPlay implements Screen {
   private applyHint(): void {
     const hint = this.hint;
     if (!hint) return;
-    if (hint.technique && !hint.already) recordHint(hint.technique);
+    if (hint.technique) recordHint(hint.technique);
     const next = this.route?.[this.routeAt + 1] ?? null;
     const target = this.routeTarget;
     if (next) this.sheet.close();
     else this.closeHint();
     this.game.applyHint(hint);
-    if (hint.step && !hint.step.placements.length && !hint.already) {
+    if (hint.step && !hint.step.placements.length) {
       // A narrowing step: no digit lands, so spark where it struck candidates.
       for (const e of hint.step.eliminations) {
         const p = this.board.center(e.cell);

@@ -54,8 +54,8 @@ entrances with matching exits and arrival sounds; Scores (records + history).
 
 Hints aim at the next digit: board-only reasoning, placement lookahead with digit-aware
 dependency tracing; only impossible notes are flagged. A digit that needs narrowing first is a
-route, taught one step at a time on the sheet ("Step 1 of 3 · toward r5c6"), with credit for
-steps already in your notes. A hint pencils only the squares its step marks (other notes step
+route, taught one step at a time on the sheet ("Step 1 of 3 · toward r5c6"); steps already in
+your notes are named in the next step's Why instead of taught, and don't use up a round. A hint pencils only the squares its step marks (other notes step
 aside while it's open); applying a narrowing step writes those notes, and auto-clear drops what a
 killer cage's sum rules out, so they never go stale.
 

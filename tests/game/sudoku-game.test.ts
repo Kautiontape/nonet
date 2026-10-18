@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { comboCandidates } from "../../src/engine/candidates";
 import { bit, cageCombos, maskOf } from "../../src/engine/combos";
 import { cellName } from "../../src/engine/geometry";
-import { hintMarks, type SudokuHint } from "../../src/engine/hints/index";
+import { hintMarks, shownCandidates, type SudokuHint } from "../../src/engine/hints/index";
 import { decodeSudoku, type SudokuPackEntry } from "../../src/engine/pack";
 import type { Digit, Puzzle, Step } from "../../src/engine/types";
 import { SudokuGame, type GameEvent, type SavedSudoku } from "../../src/game/sudoku-game";
@@ -207,6 +207,28 @@ describe("SudokuGame", () => {
     for (const n of ["r2c1", "r2c2", "r2c3"]) expect(g.notes[cell(n)]! & maskOf([9])).toBe(0);
     for (const n of ["r2c4", "r2c5", "r2c6"]) expect(g.notes[cell(n)]! & maskOf([9])).toBe(maskOf([9]));
     expect(g.hint().kind).toBe("step"); // the next hint doesn't pick at those notes
+  });
+
+  it("a step the player's notes already show rides along with the next: remembered when that's applied, at no cost", () => {
+    const p = packPuzzle("killer-expert", 1);
+    const first = new SudokuGame(p).hint().route![0]!.step!;
+    const g = new SudokuGame(p);
+    // The player has pencilled what the first step leaves, in the squares it narrows.
+    const cand = shownCandidates(p, g.grid);
+    const cells = [...new Set(first.eliminations.map((e) => e.cell))];
+    for (const e of first.eliminations) cand[e.cell]! &= ~bit(e.digit);
+    for (const c of cells) for (let d = 1; d <= 9; d++) if (cand[c]! & bit(d)) g.toggleNote(c, d as Digit);
+    const h = g.hint();
+    expect(h.kind).toBe("step");
+    expect(h.route![0]!.folded).toEqual([first]);
+    const used = g.hintsUsed;
+    const notes = Uint16Array.from(g.notes);
+    g.applyHint(h.route![0]!);
+    expect(g.hintsUsed).toBe(used + 1); // the step taught, not the one the notes showed
+    for (const e of first.eliminations) expect(g.known[e.cell]! & bit(e.digit), cellName(e.cell)).not.toBe(0);
+    const pencilled = new Set(hintMarks(h.route![0]!).map((m) => m.cell));
+    for (const c of cells) if (!pencilled.has(c)) expect(g.notes[c]).toBe(notes[c]); // nothing to add there
+    expect((g.hint().route ?? []).flatMap((r) => r.folded ?? [])).not.toContainEqual(first); // and it isn't credited twice
   });
 
   it("killer: placing a digit also clears notes its cage's sum no longer allows", () => {

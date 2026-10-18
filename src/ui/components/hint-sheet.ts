@@ -34,8 +34,6 @@ export interface RouteInfo {
   of: number;
   /** The square the route leads to, as the player sees it named ("r5c6"). */
   target: string;
-  /** This step's result was already in the player's notes: shown collapsed. */
-  already?: boolean;
 }
 
 export interface OpenOptions {
@@ -131,8 +129,7 @@ export class HintSheet {
     this.badge.style.setProperty("--tier", String(hint.tier ?? 0));
     const route = this.route;
     this.routeEl.classList.toggle("on", !!route);
-    this.routeEl.textContent = route ? `Step ${route.step} of ${route.of} · ${route.already ? "already in your notes" : `toward ${route.target}`}` : "";
-    const already = !!route?.already;
+    this.routeEl.textContent = route ? `Step ${route.step} of ${route.of} · toward ${route.target}` : "";
 
     const rows: HTMLElement[] = [];
     const ladder = hint.ladder;
@@ -158,7 +155,7 @@ export class HintSheet {
     if (hint.technique && r >= 2)
       buttons.push(h("button", { class: "btn ghost", type: "button", onclick: () => this.handlers.onLearn(hint.technique!) }, svgIcon(ICONS.book), "Learn"));
     if (r < 4 && hint.kind !== "solved") {
-      const next = ["", "Which technique?", "Why does it work?", already ? "Got it" : hint.kind === "step" ? "Apply it" : "Fix it"][r]!;
+      const next = ["", "Which technique?", "Why does it work?", hint.kind === "step" ? "Apply it" : "Fix it"][r]!;
       buttons.push(
         h(
           "button",
@@ -168,7 +165,7 @@ export class HintSheet {
         ),
       );
     } else if (r >= 4 && hint.kind !== "solved") {
-      buttons.push(h("button", { class: "btn primary", type: "button", "data-testid": "hint-apply", onclick: () => this.handlers.onApply() }, svgIcon(ICONS.check), already ? "Next" : "Apply"));
+      buttons.push(h("button", { class: "btn primary", type: "button", "data-testid": "hint-apply", onclick: () => this.handlers.onApply() }, svgIcon(ICONS.check), "Apply"));
     }
     this.actions.replaceChildren(...buttons);
   }

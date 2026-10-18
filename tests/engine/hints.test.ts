@@ -192,7 +192,7 @@ describe("hints point at the next digit", () => {
   /** Remember what every step of a hint rules out, and place what it places, as the game does. */
   const take = (h: SudokuHint, grid: Uint8Array, known: Uint16Array) => {
     for (const r of h.route ?? [h]) {
-      for (const e of r.step!.eliminations) known[e.cell]! |= bit(e.digit);
+      for (const s of [...(r.folded ?? []), r.step!]) for (const e of s.eliminations) known[e.cell]! |= bit(e.digit);
       for (const pl of r.step!.placements) grid[pl.cell] = pl.digit;
     }
   };
@@ -250,24 +250,100 @@ describe("hints point at the next digit", () => {
     throw new Error("no chained hint found in this puzzle");
   });
 
-  it("credits a step whose result the player's visible notes already show — presentation only", () => {
+  /** Notes that show what `steps` leave: every square's candidates, less what hints and the steps rule out. */
+  const notesAfter = (p: Puzzle, grid: Uint8Array, known: Uint16Array, steps: readonly Step[]) => {
+    const visible = basicCandidates(p, grid);
+    for (let c = 0; c < 81; c++) visible[c]! &= ~known[c]!;
+    for (const s of steps) for (const e of s.eliminations) visible[e.cell]! &= ~bit(e.digit);
+    return visible;
+  };
+
+  it("folds a step the player's visible notes already show into the next one: no entry of its own, named in its Why", () => {
     const p = packPuzzle("killer-expert", 1);
     const grid = gridFromPuzzle(p);
     const solution = parseSolution(p.solution!);
     const plain = sudokuHint({ puzzle: p, grid, notes: new Uint16Array(81), solution });
-    expect(plain.route?.length).toBeGreaterThan(1);
+    expect(plain.route?.length).toBeGreaterThan(2);
     const first = plain.route![0]!.step!;
-    // Notes that reflect the first step: every square's candidates, less what it strikes.
-    const visible = basicCandidates(p, grid);
-    for (const e of first.eliminations) visible[e.cell]! &= ~bit(e.digit);
+    const visible = notesAfter(p, grid, new Uint16Array(81), [first]);
     const h = sudokuHint({ puzzle: p, grid, notes: new Uint16Array(81), solution, visible });
-    expect(h.route![0]).toMatchObject({ already: true, step: first, ladder: { what: "Already in your notes.", do: "Nothing to add." } });
-    expect(h.route![0]!.ladder.why[0]).toMatch(/^Your notes already show /);
-    expect(h.route![1]!.already).toBeUndefined();
-    expect(h.route!.map((r) => r.step)).toEqual(plain.route!.map((r) => r.step)); // the route itself doesn't change
-    // Empty notes credit nothing.
+    expect(h.route![0]!.step).toEqual(plain.route![1]!.step);
+    expect(h.route![0]!.folded).toEqual([first]);
+    expect(h.ladder.where).toMatch(/^No digit is certain yet\. /);
+    expect(h.route![0]!.ladder.why[0]).toMatch(/^Your notes already show r\dc\d/);
+    expect(h.route![0]!.ladder.do).toMatch(/^Note it down: /);
+    expect(h.route!.slice(1).every((r) => !r.folded)).toBe(true);
+    // The rest of the chain is taught as before: the notes only spare the step they show.
+    expect(h.route!.slice(0, plain.route!.length - 1).map((r) => r.step)).toEqual(plain.route!.slice(1).map((r) => r.step));
+    // Empty notes show nothing.
     const bare = sudokuHint({ puzzle: p, grid, notes: new Uint16Array(81), solution, visible: new Uint16Array(81) });
-    expect(bare.route![0]!.already).toBeUndefined();
+    expect(bare.route!.map((r) => r.step)).toEqual(plain.route!.map((r) => r.step));
+    expect(bare.route!.every((r) => !r.folded)).toBe(true);
+  });
+
+  it("steps the notes already show don't use up a round: the hint walks past them to ones still to teach", () => {
+    // The old way, notes that ran three steps ahead got a round of three "already in your notes"
+    // cards and "Route marked. Hint again" — nothing taught.
+    const p = packPuzzle("killer-expert", 1);
+    const grid = gridFromPuzzle(p);
+    const solution = parseSolution(p.solution!);
+    const known = new Uint16Array(81);
+    const round = sudokuHint({ puzzle: p, grid, notes: new Uint16Array(81), solution, known });
+    expect(round.route!.length).toBe(3);
+    expect(round.route!.every((r) => !r.step!.placements.length)).toBe(true);
+    const steps = round.route!.map((r) => r.step!);
+    const h = sudokuHint({ puzzle: p, grid, notes: new Uint16Array(81), solution, known, visible: notesAfter(p, grid, known, steps) });
+    const route = h.route ?? [h];
+    expect(route[0]!.folded).toEqual(steps);
+    for (const r of route) expect(steps).not.toContainEqual(r.step);
+    expect(route.length).toBe(3); // a full round, all of it new
+  });
+
+  it("notes far ahead of the hints: the Why names two of the steps they show and counts the rest", () => {
+    const p = packPuzzle("killer-expert", 1);
+    const grid = gridFromPuzzle(p);
+    const solution = parseSolution(p.solution!);
+    const known = new Uint16Array(81);
+    const steps: Step[] = [];
+    for (let k = 0; k < 4; k++) {
+      const h = sudokuHint({ puzzle: p, grid, notes: new Uint16Array(81), solution, known });
+      steps.push(...(h.route ?? [h]).map((r) => r.step!));
+      take(h, grid, known);
+    }
+    known.fill(0);
+    const h = sudokuHint({ puzzle: p, grid, notes: new Uint16Array(81), solution, visible: notesAfter(p, grid, known, steps) });
+    const first = (h.route ?? [h])[0]!;
+    expect(first.folded).toEqual(steps); // all of them remembered when it's applied…
+    const line = first.ladder.why[0]!;
+    expect(line).toMatch(/^Your notes already show .*, and ten more steps before this one\.$/); // …two of them named
+    expect(line.split("; ").length).toBeLessThanOrEqual(4); // each fact may name two groups of squares
+  });
+
+  it("when the notes show every step before a digit, the hint is that digit, with the notes as its premise", () => {
+    const p = packPuzzle("killer-hard", 3);
+    const grid = gridFromPuzzle(p);
+    const solution = parseSolution(p.solution!);
+    const known = new Uint16Array(81);
+    for (let k = 0; k < 200; k++) {
+      const h = sudokuHint({ puzzle: p, grid, notes: new Uint16Array(81), solution, known });
+      if (h.kind !== "step") break;
+      const fin = h.route?.[h.route.length - 1];
+      if (fin?.step!.placements.length) {
+        const prior = h.route!.slice(0, -1).map((r) => r.step!);
+        const lone = sudokuHint({ puzzle: p, grid, notes: new Uint16Array(81), solution, known, visible: notesAfter(p, grid, known, prior) });
+        expect(lone.route).toBeUndefined();
+        expect(lone.target).toBeUndefined();
+        expect(lone.step).toEqual(fin.step);
+        expect(lone.folded).toEqual(prior);
+        expect(lone.ladder.where).not.toMatch(/^No digit/);
+        expect(lone.ladder.why[0]).toMatch(/^Your notes already show /);
+        expect(lone.ladder.why.join(" ")).not.toMatch(/the steps before|Notes make/);
+        expect(lone.ladder.do).toMatch(/^Place \d in r\dc\d\.$/);
+        return;
+      }
+      take(h, grid, known);
+    }
+    throw new Error("no chained hint found in this puzzle");
   });
 
   it("with the auto-note layer known, no round re-teaches a cage sum the layer shows — every expert puzzle", () => {
