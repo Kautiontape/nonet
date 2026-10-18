@@ -668,7 +668,7 @@ button:disabled {
 
 .cage-bar.lens-mode {
   flex-wrap: wrap;
-  overflow-x: visible;
+  overflow: visible;
   row-gap: 6px;
 }
 
