@@ -3,7 +3,7 @@
 What's new in Nonet, newest first. The app shows this file under Settings → Changelog, so it is
 written for players. Read `docs/CHANGELOG-STYLE.md` before adding to it.
 
-## Unreleased
+## 1.0.0 — 2026-10-18
 
 - **New puzzles.** Every mode has 100 new boards per difficulty, rebalanced: each is graded by simulating a real solve, with clearer limits so Easy through Expert match their names.
 
