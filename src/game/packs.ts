@@ -54,3 +54,13 @@ export function pickNext<T extends { id: string }>(list: readonly T[], solved: r
 export function withContentId<T extends Puzzle | QueensPuzzle>(p: T): T {
   return { ...p, id: contentId(p) };
 }
+
+/**
+ * A saved game, ready to resume: the board under its content id, and the state renamed with it.
+ * A game only loads a state saved under its board's id, so a v1 save (its v1 id in both) would
+ * otherwise reopen on an empty board.
+ */
+export function resumeSaved<P extends Puzzle | QueensPuzzle, S extends { puzzleId: string }>(board: P, state: S | null): { puzzle: P; state: S | null } {
+  const puzzle = withContentId(board);
+  return { puzzle, state: state?.puzzleId === board.id ? { ...state, puzzleId: puzzle.id } : state };
+}

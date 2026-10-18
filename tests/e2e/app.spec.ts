@@ -757,6 +757,27 @@ test("progress resumes after reload", async ({ page }) => {
   await expect(page.locator(".stats")).toContainText("Hints 1");
 });
 
+test("a game in progress from before the v2 packs resumes as it was left", async ({ page }) => {
+  // Saved the way 0.4.1 saves it: a v1 pack board, its v1 id on the board and on the state.
+  const entry = (JSON.parse(readFileSync("public/packs/killer-easy.json", "utf8")) as { puzzles: { id: string; s: string }[] }).puzzles[0]!;
+  const zeros = Array<number>(81).fill(0);
+  const grid = [...zeros];
+  grid[0] = Number(entry.s[0]); // the right digit in r1c1
+  const notes = [...zeros];
+  notes[1] = 1 << 5; // a 5 pencilled in r1c2
+  const state = { v: 1, puzzleId: entry.id, grid, notes, elapsed: 600_000, mistakes: 1, hints: 2, rungs: [0, 0, 0, 0, 0], solved: false, known: zeros, hidden: zeros, struck: [] };
+  await page.goto("/");
+  await page.evaluate((game) => localStorage.setItem("cagecoach.game.killer", JSON.stringify(game)), { difficulty: "easy", entry, state, savedAt: Date.now() });
+  await page.reload();
+  await page.getByTestId("resume-killer").click();
+  await readBoard(page);
+  await expect(cellLocator(page, 0).locator(".v")).toHaveText(entry.s[0]!);
+  await expect(cellLocator(page, 1).locator(".notes i.on")).toHaveText("5");
+  await expect(page.getByTestId("timer")).toHaveText(/^10:0\d$/);
+  await expect(page.locator(".stats")).toContainText("Mistakes 1");
+  await expect(page.locator(".stats")).toContainText("Hints 2");
+});
+
 test("the level number carries on from boards solved before the update", async ({ page }) => {
   // A record from 0.3: solved ids from the old packs, no level counts.
   await page.goto("/");

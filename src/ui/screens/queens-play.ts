@@ -4,7 +4,7 @@ import type { QueensHint, RegionNamer } from "../../engine/queens/hints";
 import { decodeQueens, encodeQueens, type QueensPackEntry } from "../../engine/queens/pack";
 import { CROSS, EMPTY, QUEEN, type QCell, type QueensPuzzle } from "../../engine/queens/types";
 import type { Difficulty } from "../../engine/types";
-import { loadQueensPack, pickNext, withContentId } from "../../game/packs";
+import { loadQueensPack, pickNext, resumeSaved } from "../../game/packs";
 import { QueensGame, type QueensEvent, type SavedQueens } from "../../game/queens-game";
 import { clearSaved, loadSaved, storeSaved, type App, type Screen } from "../app";
 import { HintSheet } from "../components/hint-sheet";
@@ -33,8 +33,7 @@ export async function createQueensPlay(app: App, difficulty: Difficulty, resume:
   if (resume) {
     const s = loadSaved<SavedQueens>("queens");
     if (s) {
-      puzzle = withContentId(decodeQueens(s.entry as QueensPackEntry));
-      saved = s.state;
+      ({ puzzle, state: saved } = resumeSaved(decodeQueens(s.entry as QueensPackEntry), s.state));
       difficulty = s.difficulty;
     }
   }

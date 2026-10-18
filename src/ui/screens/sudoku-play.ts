@@ -13,7 +13,7 @@ import { regionEquation, type RegionEquation } from "../../engine/region";
 import { createState } from "../../engine/state";
 import { cageView } from "../../engine/techniques/killer";
 import type { CellId, Difficulty, House, Puzzle } from "../../engine/types";
-import { loadSudokuPack, pickNext, withContentId } from "../../game/packs";
+import { loadSudokuPack, pickNext, resumeSaved } from "../../game/packs";
 import { SudokuGame, type GameEvent, type SavedSudoku } from "../../game/sudoku-game";
 import { clearSaved, loadSaved, storeSaved, type App, type Screen } from "../app";
 import { refNodes } from "../cell-refs";
@@ -44,8 +44,7 @@ export async function createSudokuPlay(app: App, mode: SudokuMode, difficulty: D
   if (resume) {
     const saved = loadSaved<SavedSudoku>(mode);
     if (saved) {
-      puzzle = withContentId(decodeSudoku(saved.entry as ReturnType<typeof encodeSudoku>));
-      savedState = saved.state;
+      ({ puzzle, state: savedState } = resumeSaved(decodeSudoku(saved.entry as ReturnType<typeof encodeSudoku>), saved.state));
       difficulty = saved.difficulty;
     }
   }
