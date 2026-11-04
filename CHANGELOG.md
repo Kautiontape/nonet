@@ -3,7 +3,7 @@
 What's new in Nonet, newest first. The app shows this file under Settings → Changelog, so it is
 written for players. Read `docs/CHANGELOG-STYLE.md` before adding to it.
 
-## Unreleased
+## 1.2.0 — 2026-11-04
 
 - **Play with stakes.** Settings → Play → Allow mistakes: Limited forgives the number you pick, Hardcore none; one more and the puzzle is lost, and you see the answer.
 
