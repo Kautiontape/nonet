@@ -42,6 +42,7 @@ export type GameEvent =
   | { type: "strike"; cage: number; combo: number; on: boolean }
   | { type: "complete"; cell: CellId; houses: House[]; cages: number[]; digits: Digit[] }
   | { type: "solved" }
+  | { type: "lost" }
   | { type: "history"; kind: "undo" | "redo"; cells: CellId[] };
 
 export interface SudokuSettings {
@@ -49,6 +50,8 @@ export interface SudokuSettings {
   autoClearNotes: boolean;
   /** Flag wrong digits immediately (and count mistakes). */
   checkMistakes: boolean;
+  /** Counted mistakes the game forgives (0: none); one more loses it. Null: they never end a game. */
+  mistakeLimit: number | null;
   /** Show the auto-note layer: dim digits the rules still allow, under the player's own notes. */
   autoNotes: boolean;
 }
@@ -95,7 +98,9 @@ export class SudokuGame {
   /** How many times each rung (0..4) was revealed. */
   rungs = [0, 0, 0, 0, 0];
   solved = false;
-  settings: SudokuSettings = { autoClearNotes: true, checkMistakes: true, autoNotes: false };
+  /** Went over the mistake limit. Never saved: a lost game is over, not resumed. */
+  lost = false;
+  settings: SudokuSettings = { autoClearNotes: true, checkMistakes: true, mistakeLimit: null, autoNotes: false };
 
   private undoStack: HistoryEntry[] = [];
   private redoStack: HistoryEntry[] = [];
@@ -145,6 +150,11 @@ export class SudokuGame {
     return i >= 0 ? this.puzzle.cages[i] : undefined;
   }
 
+  /** Solved or lost: the board is closed. */
+  get over(): boolean {
+    return this.solved || this.lost;
+  }
+
   isWrong(cell: CellId): boolean {
     const d = this.grid[cell]!;
     return d !== 0 && d !== this.solution[cell];
@@ -161,6 +171,18 @@ export class SudokuGame {
     let n = 0;
     for (let c = 0; c < 81; c++) if (this.grid[c] && this.grid[c] === this.solution[c]) n++;
     return n;
+  }
+
+  /** The player's share of the board: squares they've got right, out of those not given. */
+  solvedShare(): number {
+    let open = 0;
+    let right = 0;
+    for (let c = 0; c < 81; c++) {
+      if (this.given[c]) continue;
+      open++;
+      if (this.grid[c] === this.solution[c]) right++;
+    }
+    return open ? right / open : 1;
   }
 
   canUndo(): boolean {
@@ -253,15 +275,24 @@ export class SudokuGame {
   }
 
   place(cell: CellId, digit: Digit, fromHint = false): void {
-    if (this.solved || this.given[cell] || this.grid[cell] === digit) return;
+    if (this.over || this.given[cell] || this.grid[cell] === digit) return;
     const correct = digit === this.solution[cell];
     const reason = correct ? undefined : this.mistakeReason(cell, digit);
     const pending = new Map<CellId, Change>();
     this.placeChanges(cell, digit, pending);
     this.commit(fromHint ? "hint" : "place", [...pending.values()]);
-    if (!correct && this.settings.checkMistakes) this.mistakes++;
+    if (!correct) this.countMistake();
     this.emit({ type: "place", cell, digit, correct, reason, fromHint });
     if (correct) this.checkCompletion(cell);
+    else if (this.lost) this.emit({ type: "lost" });
+  }
+
+  /** A wrong digit, counted if mistakes are being flagged. Going over the limit loses the game. */
+  private countMistake(): void {
+    if (!this.settings.checkMistakes) return;
+    this.mistakes++;
+    const limit = this.settings.mistakeLimit;
+    this.lost = limit !== null && this.mistakes > limit;
   }
 
   erase(cell: CellId): void {
@@ -270,7 +301,7 @@ export class SudokuGame {
 
   /** Wipe several cells at once — digits, notes and strikes; givens stay — as one undo step. */
   eraseMany(cells: readonly CellId[]): void {
-    if (this.solved) return;
+    if (this.over) return;
     const hit = cells.filter((c) => !this.given[c] && (this.grid[c] || this.notes[c] || this.hidden[c]));
     if (!hit.length) return;
     this.commit("erase", hit.map((c): Change => ({ cell: c, digit: [this.grid[c]!, 0], notes: [this.notes[c]!, 0], hidden: [this.hidden[c]!, 0] })));
@@ -283,7 +314,7 @@ export class SudokuGame {
    * allows comes back dim; anything else goes in as a bright note.
    */
   toggleNote(cell: CellId, digit: Digit): void {
-    if (this.solved || this.grid[cell]) return;
+    if (this.over || this.grid[cell]) return;
     const base = this.layerBase();
     const shows = ((this.notes[cell]! | this.dimAt(cell, base)) & bit(digit)) !== 0;
     const ch = this.noteToggle(cell, digit, base, shows ? "off" : "on");
@@ -297,7 +328,7 @@ export class SudokuGame {
    * it (bright or dim), take it out of all of them; otherwise show it everywhere it's missing.
    */
   toggleNoteMany(cells: readonly CellId[], digit: Digit): void {
-    if (this.solved) return;
+    if (this.over) return;
     const empty = cells.filter((c) => !this.grid[c]);
     if (!empty.length) return;
     const base = this.layerBase();
@@ -379,7 +410,7 @@ export class SudokuGame {
 
   /** Cross a combination out, or back in (one undo step). `combo` is as for `isStruck`. */
   toggleStrike(cage: Cage, combo: number): void {
-    if (this.solved) return;
+    if (this.over) return;
     const on = !this.isStruck(cage, combo);
     this.commit("strike", [], [strikeKey(cage.id, combo | this.placedIn(cage))]);
     this.emit({ type: "strike", cage: cage.id, combo, on });
@@ -397,6 +428,7 @@ export class SudokuGame {
 
   /** Clear the player's notes and strikes everywhere — combinations crossed out too — as one undo step. */
   clearNotes(): void {
+    if (this.over) return;
     const changes: Change[] = [];
     for (let c = 0; c < 81; c++)
       if (this.notes[c] || this.hidden[c]) changes.push({ cell: c, digit: [this.grid[c]!, this.grid[c]!], notes: [this.notes[c]!, 0], hidden: [this.hidden[c]!, 0] });
@@ -404,9 +436,9 @@ export class SudokuGame {
     this.emit({ type: "notes", cells: changes.map((ch) => ch.cell) });
   }
 
-  /** Once solved, history is closed: undoing and redoing would solve the puzzle (and score it) twice. */
+  /** Once over, history is closed: undoing and redoing would solve the puzzle (and score it) twice, or dodge a loss. */
   undo(): void {
-    if (this.solved) return;
+    if (this.over) return;
     const e = this.undoStack.pop();
     if (!e) return;
     for (const ch of e.changes) {
@@ -421,7 +453,7 @@ export class SudokuGame {
   }
 
   redo(): void {
-    if (this.solved) return;
+    if (this.over) return;
     const e = this.redoStack.pop();
     if (!e) return;
     for (const ch of e.changes) {
@@ -507,7 +539,7 @@ export class SudokuGame {
    * the player's notes, are remembered with it and cost nothing.
    */
   applyHint(h: SudokuHint): void {
-    if (this.solved) return;
+    if (this.over) return;
     this.hintsUsed++;
     const pending = new Map<CellId, Change>();
     const get = (c: CellId): Change => {

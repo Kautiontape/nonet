@@ -2,6 +2,7 @@
  * The results banner: after a level, a translucent strip across the top with the time, whether
  * it's a record, mistakes and hints — readable at a glance while the next level drops in below.
  * It never blocks play; it fades on its own, or sooner with a tap. Scores keeps the history.
+ * A level lost to the mistake limit gets the same strip, with how far it got in place of a best.
  */
 import { formatTime, h } from "../dom";
 import { DIFFICULTY_LABEL, MODE_LABEL } from "../messages";
@@ -16,39 +17,53 @@ export function mountResults(root: HTMLElement): void {
 }
 
 const word = (n: number, one: string) => (n === 1 ? one : `${one}s`);
+const stat = (value: string, label: string, cls = "") => h("span", { class: `rstat ${cls}` }, h("b", null, value), h("small", null, label));
+const kicker = (r: Pick<ResultEntry, "mode" | "difficulty" | "level">) =>
+  h("span", { class: "result-kicker" }, `${MODE_LABEL[r.mode] ?? r.mode} · ${DIFFICULTY_LABEL[r.difficulty] ?? r.difficulty} · Level ${r.level}`);
 
 export function showResult(r: ResultEntry, ms = 6500): void {
-  if (!layer) return;
-  const stat = (value: string, label: string, cls = "") => h("span", { class: `rstat ${cls}` }, h("b", null, value), h("small", null, label));
   const best = r.record
     ? stat(formatTime(r.prevBest ?? r.time), "old best", "dim")
     : r.first
       ? stat("—", "first clear", "dim")
       : stat(formatTime(r.prevBest ?? r.time), "best", "dim");
-  const banner = h(
-    "div",
-    {
-      class: `result${r.perfect ? " perfect" : ""}${r.record ? " record" : ""}`,
-      "data-testid": "result",
-      title: "Tap to dismiss",
-      onclick: () => hide(banner),
-    },
+  present(
+    `result${r.perfect ? " perfect" : ""}${r.record ? " record" : ""}`,
     h(
       "span",
       { class: "result-head" },
-      h("span", { class: "result-kicker" }, `${MODE_LABEL[r.mode] ?? r.mode} · ${DIFFICULTY_LABEL[r.difficulty] ?? r.difficulty} · Level ${r.level}`),
+      kicker(r),
       r.record ? h("span", { class: "result-badge" }, "★ New record") : null,
       h("b", { class: "result-title" }, r.perfect ? "Perfect" : "Solved"),
     ),
-    h(
-      "span",
-      { class: "result-stats" },
+    [
       stat(formatTime(r.time), "time", r.record ? "gold" : ""),
       stat(String(r.mistakes), word(r.mistakes, "mistake"), r.mistakes ? "" : "clean"),
       stat(String(r.hints), word(r.hints, "hint"), r.hints ? "" : "clean"),
       best,
-    ),
+    ],
+    ms,
   );
+}
+
+/** A level lost to the mistake limit. `progress` is how much of the board was right, 0 to 1. */
+export function showLoss(r: Pick<ResultEntry, "mode" | "difficulty" | "level" | "time" | "mistakes" | "hints"> & { progress: number }, ms = 6500): void {
+  present(
+    "result lost",
+    h("span", { class: "result-head" }, kicker(r), h("b", { class: "result-title" }, "Game over")),
+    [
+      stat(formatTime(r.time), "time"),
+      stat(String(r.mistakes), word(r.mistakes, "mistake")),
+      stat(String(r.hints), word(r.hints, "hint"), r.hints ? "" : "clean"),
+      stat(`${Math.round(r.progress * 100)}%`, "solved", "dim"),
+    ],
+    ms,
+  );
+}
+
+function present(cls: string, head: HTMLElement, stats: HTMLElement[], ms: number): void {
+  if (!layer) return;
+  const banner = h("div", { class: cls, "data-testid": "result", title: "Tap to dismiss", onclick: () => hide(banner) }, head, h("span", { class: "result-stats" }, ...stats));
   layer.replaceChildren(banner);
   clearTimeout(timer);
   timer = window.setTimeout(() => hide(banner), ms);

@@ -71,6 +71,8 @@ test("sync: turn it on from one device and join from another; scores and gamepla
     autoClearNotes: true,
     autoNotes: false,
     checkMistakes: true,
+    allowMistakes: "yes",
+    mistakeLimit: 3,
     showTimer: true,
     cageTint: true,
     showCombos: true,

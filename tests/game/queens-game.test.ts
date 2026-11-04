@@ -194,3 +194,84 @@ describe("QueensGame scratch", () => {
     expect(new QueensGame(P, saved).marks).toEqual(Uint8Array.from(saved.marks));
   });
 });
+
+describe("QueensGame mistake limit", () => {
+  const WRONGS = [0, 2, 3, 4]; // row 1, none of them r1c2
+
+  const limited = (limit: number | null) => {
+    const g = new QueensGame(P);
+    g.settings.mistakeLimit = limit;
+    return { g, events: track(g) };
+  };
+
+  it("no limit: mistakes never end the game", () => {
+    const { g, events } = limited(null);
+    for (const c of WRONGS) g.setMark(c, QUEEN);
+    expect(g.mistakes).toBe(4);
+    expect(g.lost).toBe(false);
+    expect(events.some((e) => e.type === "lost")).toBe(false);
+  });
+
+  it("a limit of 2 forgives two mistakes and loses on the third", () => {
+    const { g, events } = limited(2);
+    g.setMark(WRONGS[0]!, QUEEN);
+    g.setMark(WRONGS[1]!, QUEEN);
+    expect(g.lost).toBe(false);
+    g.setMark(WRONGS[2]!, QUEEN);
+    expect(g.mistakes).toBe(3);
+    expect(g.lost).toBe(true);
+    expect(events.filter((e) => e.type === "lost")).toHaveLength(1);
+  });
+
+  it("hardcore loses on the first wrong queen, after the queen's own feedback", () => {
+    const { g, events } = limited(0);
+    g.setMark(SOLUTION[0]!, QUEEN); // right: nothing happens
+    expect(g.lost).toBe(false);
+    g.setMark(WRONGS[3]!, QUEEN);
+    expect(g.lost).toBe(true);
+    expect(events.slice(-2).map((e) => e.type)).toEqual(["queen", "lost"]);
+  });
+
+  it("a mistake nobody flags counts for nothing", () => {
+    const { g } = limited(0);
+    g.settings.checkMistakes = false;
+    g.setMark(WRONG, QUEEN);
+    expect(g.mistakes).toBe(0);
+    expect(g.lost).toBe(false);
+  });
+
+  it("scratch queens never count; Keep checks them, and the first over the limit ends it", () => {
+    const { g, events } = limited(0);
+    g.beginScratch();
+    g.setMark(WRONGS[0]!, QUEEN);
+    g.setMark(WRONGS[1]!, QUEEN);
+    expect(g.mistakes).toBe(0);
+    expect(g.lost).toBe(false);
+    g.keepScratch();
+    expect(g.mistakes).toBe(1); // the second kept queen isn't judged: the game is over
+    expect(g.lost).toBe(true);
+    expect(events.filter((e) => e.type === "lost")).toHaveLength(1);
+  });
+
+  it("a lost board is locked: nothing changes it, and there's no undoing out", () => {
+    const { g } = limited(0);
+    g.tap(5);
+    g.setMark(WRONG, QUEEN);
+    const before = JSON.stringify(g.toJSON());
+    const events = track(g);
+
+    g.tap(7);
+    g.doubleTap(8);
+    g.clear(WRONG);
+    g.paint([13, 14], CROSS, false);
+    g.clearAll();
+    g.undo();
+    g.redo();
+    g.beginScratch();
+    g.applyHint(g.hint());
+
+    expect(g.scratching).toBe(false);
+    expect(JSON.stringify(g.toJSON())).toBe(before);
+    expect(events).toEqual([]);
+  });
+});

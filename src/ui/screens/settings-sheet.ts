@@ -4,7 +4,7 @@ import { formatCode, normalizeCode } from "../../sync/code";
 import { versionLabel } from "../changelog";
 import { h, svgIcon } from "../dom";
 import { ICONS } from "../icons";
-import { onSettings, settings, updateSettings, type EffectsLevel, type Settings } from "../settings";
+import { ALLOW_MISTAKES, clampLimit, onSettings, settings, updateSettings, type AllowMistakes, type EffectsLevel, type Settings } from "../settings";
 import { sound } from "../sound";
 import { backupSolved, makeBackup, parseBackup, restoreBackup, todayKey, type Backup } from "../store";
 import { SYNC_AVAILABLE, syncClient, syncCode } from "../sync";
@@ -12,7 +12,14 @@ import { hasNews } from "../whats-new";
 import { openChangelog } from "./changelog";
 
 type BoolKey = { [K in keyof Settings]: Settings[K] extends boolean ? K : never }[keyof Settings];
-type Toggle = { key: BoolKey; label: string; hint?: string };
+type Toggle = {
+  key: BoolKey;
+  label: string;
+  hint?: string;
+  /** While this says so the switch stays on and can't be moved, with `lockedHint` under it. */
+  locked?: (s: Settings) => boolean;
+  lockedHint?: string;
+};
 type TabId = "sound" | "play" | "killer" | "queens" | "data";
 
 const TABS: { id: TabId; label: string }[] = [
@@ -30,7 +37,13 @@ const TOGGLES: Record<Exclude<TabId, "data">, Toggle[]> = {
     { key: "haptics", label: "Haptics", hint: "Vibration on supported phones." },
   ],
   play: [
-    { key: "checkMistakes", label: "Flag mistakes instantly", hint: "Explains why a digit is wrong." },
+    {
+      key: "checkMistakes",
+      label: "Flag mistakes instantly",
+      hint: "Explains why a digit is wrong.",
+      locked: (s) => s.allowMistakes !== "yes",
+      lockedHint: "Always on while mistakes are limited.",
+    },
     { key: "autoClearNotes", label: "Auto-remove notes", hint: "Placing a digit clears the notes it rules out." },
     { key: "autoNotes", label: "Show auto-notes", hint: "Digits the rules still allow, under your own notes; tap one in notes mode to strike it." },
     { key: "highlightSame", label: "Highlight matching digits" },
@@ -56,7 +69,7 @@ export function openSettings(opts: SettingsOptions = {}): void {
   // Every panel is built once and switched with `hidden`, so a half-done restore survives a tab change.
   const panels: Record<TabId, HTMLElement[]> = {
     sound: [effectsRow(offs), ...TOGGLES.sound.map((t) => toggleRow(t, offs))],
-    play: TOGGLES.play.map((t) => toggleRow(t, offs)),
+    play: [mistakesRow(offs), ...TOGGLES.play.map((t) => toggleRow(t, offs))],
     killer: TOGGLES.killer.map((t) => toggleRow(t, offs)),
     queens: TOGGLES.queens.map((t) => toggleRow(t, offs)),
     data: [...(SYNC_AVAILABLE ? [syncRow(offs, opts.join)] : []), backupRow()],
@@ -147,16 +160,70 @@ function effectsRow(offs: (() => void)[]): HTMLElement {
   return h("div", { class: "set-row" }, h("div", null, h("b", null, "Effects"), h("small", null, "Calm is easiest on battery and motion.")), effects);
 }
 
+const MISTAKE_LABEL: Record<AllowMistakes, string> = { yes: "Yes", limited: "Limited", hardcore: "Hardcore" };
+const MISTAKE_HINT: Record<AllowMistakes, string> = {
+  yes: "Mistakes never end a game.",
+  limited: "One more than this and the puzzle is lost.",
+  hardcore: "One mistake and the puzzle is lost.",
+};
+
+/** Whether mistakes can end a game: never, past a number the player picks, or at the first one. */
+function mistakesRow(offs: (() => void)[]): HTMLElement {
+  const choice = h(
+    "div",
+    { class: "segmented", role: "radiogroup", "aria-label": "Allow mistakes", "data-testid": "allow-mistakes" },
+    ...ALLOW_MISTAKES.map((m) =>
+      h(
+        "button",
+        {
+          type: "button",
+          role: "radio",
+          onclick: () => {
+            updateSettings({ allowMistakes: m });
+            sound.ui("toggle");
+          },
+        },
+        MISTAKE_LABEL[m],
+      ),
+    ),
+  );
+  const hint = h("small");
+  const limit = h("input", { class: "limit-input", type: "number", min: "1", max: "99", inputmode: "numeric", "data-testid": "mistake-limit" }) as HTMLInputElement;
+  const parsed = () => (limit.value.trim() ? Number(limit.value) : NaN);
+  // Saved as it's typed, so closing the sheet mid-edit keeps it. A half-typed box is left alone until it's done.
+  limit.addEventListener("input", () => {
+    if (parsed() >= 1) updateSettings({ mistakeLimit: clampLimit(parsed()) });
+  });
+  limit.addEventListener("change", () => (limit.value = String(settings().mistakeLimit)));
+  const limitRow = h("label", { class: "limit-row" }, "Mistakes allowed", limit);
+  const reflect = (s: Settings) => {
+    for (const [i, b] of [...choice.children].entries()) b.setAttribute("aria-checked", String(ALLOW_MISTAKES[i] === s.allowMistakes));
+    hint.textContent = MISTAKE_HINT[s.allowMistakes];
+    limitRow.hidden = s.allowMistakes !== "limited";
+    if (document.activeElement !== limit) limit.value = String(s.mistakeLimit);
+  };
+  reflect(settings());
+  offs.push(onSettings(reflect));
+  return h("div", { class: "set-row mistakes", "data-testid": "mistakes-row" }, h("div", null, h("b", null, "Allow mistakes"), hint), choice, limitRow);
+}
+
 function toggleRow(r: Toggle, offs: (() => void)[]): HTMLElement {
   const input = h("input", { type: "checkbox", role: "switch", "data-key": r.key }) as HTMLInputElement;
-  input.checked = settings()[r.key];
+  const hint = r.hint ? h("small") : null;
+  const reflect = (s: Settings) => {
+    const locked = r.locked?.(s) ?? false;
+    input.checked = locked || s[r.key];
+    input.disabled = locked;
+    if (hint) hint.textContent = (locked && r.lockedHint) || r.hint!;
+  };
   input.addEventListener("change", () => {
     updateSettings({ [r.key]: input.checked } as Partial<Settings>);
     sound.ui("toggle");
   });
+  reflect(settings());
   // A setting sync brings in from another device shows up without reopening the sheet.
-  offs.push(onSettings((s) => (input.checked = s[r.key])));
-  return h("label", { class: "set-row" }, h("div", null, h("b", null, r.label), r.hint ? h("small", null, r.hint) : null), h("span", { class: "switch" }, input, h("i")));
+  offs.push(onSettings(reflect));
+  return h("label", { class: "set-row" }, h("div", null, h("b", null, r.label), hint), h("span", { class: "switch" }, input, h("i")));
 }
 
 /** "just now", "5 min ago", "3 h ago", or the date. */

@@ -21,16 +21,16 @@ import { HintSheet, type OpenOptions } from "../components/hint-sheet";
 import { Numpad } from "../components/numpad";
 import { openPause, timerButton } from "../components/pause";
 import { SudokuBoard } from "../components/sudoku-board";
-import { showResult } from "../components/result-banner";
+import { showLoss, showResult } from "../components/result-banner";
 import { clearToast, toast } from "../components/toast";
 import { flip, formatTime, h, holdable, shiftOnly, svgIcon } from "../dom";
 import { callout } from "../fx/callout";
 import { enterLevel, leaveLevel } from "../fx/levels";
 import { buzz } from "../haptics";
 import { ICONS } from "../icons";
-import { DIFFICULTY_LABEL, MODE_LABEL, mistakeText } from "../messages";
+import { DIFFICULTY_LABEL, MODE_LABEL, mistakeCount, mistakeText } from "../messages";
 import { DIGIT_COLORS, MARK_COLORS } from "../palette";
-import { onSettings, settings, updateSettings } from "../settings";
+import { flagsMistakes, mistakesAllowed, onSettings, settings, updateSettings } from "../settings";
 import { sound } from "../sound";
 import { finishPuzzle, firstTime, loadProgress, recordHint } from "../store";
 import { openLearn } from "./learn";
@@ -259,7 +259,7 @@ class SudokuPlay implements Screen {
     window.setTimeout(() => delete this.el.dataset.entering, ms);
   }
 
-  /** On to the next level: the solved board leaves, the next one arrives. Waits out open overlays. */
+  /** On to the next level: the finished board leaves, the next one arrives. Waits out open overlays. */
   private advance(): void {
     if (document.querySelector(".overlay")) {
       this.advanceTimer = window.setTimeout(() => this.advance(), 600);
@@ -275,7 +275,8 @@ class SudokuPlay implements Screen {
   private applyGameSettings(): void {
     const st = settings();
     this.game.settings.autoClearNotes = st.autoClearNotes;
-    this.game.settings.checkMistakes = st.checkMistakes;
+    this.game.settings.checkMistakes = flagsMistakes(st);
+    this.game.settings.mistakeLimit = mistakesAllowed(st);
     this.game.settings.autoNotes = st.autoNotes;
   }
 
@@ -296,7 +297,7 @@ class SudokuPlay implements Screen {
       selected: this.selected,
       multi: this.multi,
       highlightDigit: this.peekDigit || (st.highlightSame ? selDigit || this.activeDigit : 0),
-      showWrong: st.checkMistakes,
+      showWrong: flagsMistakes(st),
       cageTint: st.cageTint,
     });
     // Held Shift looks like notes mode; aria-pressed stays the toggle's own state.
@@ -316,7 +317,7 @@ class SudokuPlay implements Screen {
     this.progressEl.style.width = `${(p * 100).toFixed(1)}%`;
     this.timerEl.textContent = st.showTimer ? formatTime(g.elapsedMs) : "";
     this.statsEl.replaceChildren(
-      h("span", { class: g.mistakes ? "bad" : "" }, `Mistakes ${g.mistakes}`),
+      h("span", { class: g.mistakes ? "bad" : "" }, mistakeCount(g.mistakes, mistakesAllowed(st))),
       h("span", null, `Hints ${g.hintsUsed}`),
       this.multi.length > 1
         ? h("span", { class: "notes-flag" }, `${this.multi.length} cells · digits pencil into all`)
@@ -657,7 +658,7 @@ class SudokuPlay implements Screen {
         const color = DIGIT_COLORS[e.digit]!;
         const pan = (colOf(e.cell) - 4) / 4;
         this.lastPlaced = e.cell;
-        if (e.correct || !settings().checkMistakes) {
+        if (e.correct || !flagsMistakes(settings())) {
           this.board.pop(e.cell);
           fx.burst(p.x, p.y, color, { count: e.fromHint ? 14 : 18, speed: 200, size: 8 });
           fx.ring(p.x, p.y, color, this.board.cellSize() * 0.9, 0.5, 2);
@@ -669,7 +670,7 @@ class SudokuPlay implements Screen {
           fx.burst(p.x, p.y, "#ff4d6d", { count: 10, speed: 140, size: 6, life: 0.5 });
           sound.mistake();
           buzz("mistake");
-          toast(mistakeText(e.reason, e.digit), "bad");
+          toast(mistakeText(e.reason, e.digit, this.game.lost), "bad");
         }
         break;
       }
@@ -689,6 +690,9 @@ class SudokuPlay implements Screen {
         break;
       case "solved":
         this.finale();
+        break;
+      case "lost":
+        this.gameOver();
         break;
       default:
         break;
@@ -789,12 +793,27 @@ class SudokuPlay implements Screen {
     this.advanceTimer = window.setTimeout(() => this.advance(), ADVANCE_MS);
   }
 
+  /** Over the mistake limit: the board locks, the stats show, and the next level comes anyway. Nothing is scored. */
+  private gameOver(): void {
+    const g = this.game;
+    this.el.dataset.lost = "true";
+    this.closeHint();
+    const box = this.board.el.getBoundingClientRect();
+    callout("GAME OVER", { size: "huge", color: LOST_COLOR, y: box.top + box.height * 0.4 });
+    const c = this.board.center(40);
+    this.app.bg.pulse(c.x, c.y, LOST_COLOR, 2);
+    clearSaved(this.mode);
+    const result = { mode: this.mode, difficulty: this.difficulty, level: this.level, time: g.elapsedMs, mistakes: g.mistakes, hints: g.hintsUsed, progress: g.solvedShare() };
+    window.setTimeout(() => showLoss(result), 600);
+    this.advanceTimer = window.setTimeout(() => this.advance(), ADVANCE_MS);
+  }
+
   // ------------------------------------------------------------------------------------------
   // Hints
 
   private openHint(): void {
     sound.unlock();
-    if (this.game.solved) return;
+    if (this.game.over) return;
     if (this.sheet.isOpen) {
       this.sheet.advance();
       return;
@@ -874,7 +893,7 @@ class SudokuPlay implements Screen {
   // ------------------------------------------------------------------------------------------
 
   private onTick(): void {
-    if (document.hidden || this.game.solved || document.querySelector(".overlay")) return;
+    if (document.hidden || this.game.over || document.querySelector(".overlay")) return;
     this.game.elapsedMs += 1000;
     if (settings().showTimer) this.timerEl.textContent = formatTime(this.game.elapsedMs);
     if (Math.round(this.game.elapsedMs / 1000) % 5 === 0) this.save();
@@ -882,7 +901,7 @@ class SudokuPlay implements Screen {
 
   /** The cover goes up and the timer holds. Saved first, in case they don't come back. */
   private pause(): void {
-    if (this.game.solved) return;
+    if (this.game.over) return;
     this.save();
     openPause(settings().showTimer ? formatTime(this.game.elapsedMs) : null);
   }
@@ -893,7 +912,7 @@ class SudokuPlay implements Screen {
   }
 
   private save(): void {
-    if (this.game.solved || this.discard) return;
+    if (this.game.over || this.discard) return;
     storeSaved(this.mode, { difficulty: this.difficulty, entry: encodeSudoku(this.puzzle), state: this.game.toJSON() });
   }
 
@@ -913,13 +932,14 @@ class SudokuPlay implements Screen {
       h(
         "div",
         { class: "menu-panel" },
-        !this.game.solved && item("Pause", ICONS.pause, () => this.pause()),
+        !this.game.over && item("Pause", ICONS.pause, () => this.pause()),
         item("New puzzle", ICONS.next, () => void this.app.play(this.mode, this.difficulty, false, this.puzzle.id)),
-        item("Restart this puzzle", ICONS.restart, () => {
-          this.discard = true;
-          storeSaved(this.mode, { difficulty: this.difficulty, entry: encodeSudoku(this.puzzle), state: new SudokuGame(this.puzzle).toJSON() });
-          void this.app.play(this.mode, this.difficulty, true);
-        }),
+        !this.game.lost &&
+          item("Restart this puzzle", ICONS.restart, () => {
+            this.discard = true;
+            storeSaved(this.mode, { difficulty: this.difficulty, entry: encodeSudoku(this.puzzle), state: new SudokuGame(this.puzzle).toJSON() });
+            void this.app.play(this.mode, this.difficulty, true);
+          }),
         item("Clear notes", ICONS.trash, () => this.game.clearNotes()),
         item("Scores", ICONS.trophy, () => openScores()),
         item("Learn techniques", ICONS.book, () => openLearn()),
@@ -933,6 +953,9 @@ class SudokuPlay implements Screen {
 
 /** From the solve to the next level: the fireworks play and the finale's chord resolves first. */
 const ADVANCE_MS = 2400;
+
+/** The mistake red (style.css --bad): the loss's callout and pulse. */
+const LOST_COLOR = "#ff4d6d";
 
 /** L cycles the Σ45 lens: row → column → box → off. */
 const LENS_CYCLE: Record<"off" | "row" | "col" | "box", "row" | "col" | "box" | null> = { off: "row", row: "col", col: "box", box: null };

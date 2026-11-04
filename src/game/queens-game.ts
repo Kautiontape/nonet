@@ -26,6 +26,7 @@ export type QueensEvent =
   | { type: "scratch"; on: boolean; kept?: boolean; cells: QCell[] }
   | { type: "complete"; cell: QCell; units: Unit[] }
   | { type: "solved" }
+  | { type: "lost" }
   | { type: "history"; kind: "undo" | "redo"; cells: QCell[] };
 
 interface Change {
@@ -55,7 +56,10 @@ export class QueensGame {
   hintsUsed = 0;
   rungs = [0, 0, 0, 0, 0];
   solved = false;
-  settings = { checkMistakes: true };
+  /** Went over the mistake limit. Never saved: a lost game is over, not resumed. */
+  lost = false;
+  /** `mistakeLimit`: counted mistakes the game forgives (0: none), one more loses it. Null: they never end a game. */
+  settings: { checkMistakes: boolean; mistakeLimit: number | null } = { checkMistakes: true, mistakeLimit: null };
   private undoStack: Change[][] = [];
   private redoStack: Change[][] = [];
   private listeners = new Set<(e: QueensEvent) => void>();
@@ -87,6 +91,11 @@ export class QueensGame {
   }
   private emit(e: QueensEvent): void {
     for (const fn of this.listeners) fn(e);
+  }
+
+  /** Solved or lost: the board is closed. */
+  get over(): boolean {
+    return this.solved || this.lost;
   }
 
   region(c: QCell): number {
@@ -175,7 +184,7 @@ export class QueensGame {
 
   /** Change one cell; returns its undo entry, or null if nothing changed. */
   private mark(cell: QCell, mark: number): Change[] | null {
-    if (this.solved) return null;
+    if (this.over) return null;
     const prev = this.marks[cell]!;
     const entry = this.commit([{ cell, from: prev, to: mark }]);
     if (!entry.length) return null;
@@ -197,7 +206,7 @@ export class QueensGame {
 
   /** The second tap of a double tap: whatever the first tap did becomes a queen, as one undo step. */
   doubleTap(cell: QCell): void {
-    if (this.solved) return;
+    if (this.over) return;
     const first = this.lastTap;
     this.lastTap = null;
     if (first?.[0]?.cell === cell && this.undoStack[this.undoStack.length - 1] === first) {
@@ -218,7 +227,7 @@ export class QueensGame {
    */
   paint(cells: QCell[], mark: typeof CROSS | typeof EMPTY, more: boolean): void {
     if (!more) this.paintEntry = null;
-    if (this.solved) return;
+    if (this.over) return;
     const from = mark === CROSS ? EMPTY : CROSS;
     const changes = cells.filter((c) => this.marks[c] === from).map((c) => ({ cell: c, from, to: mark }));
     if (!changes.length) return;
@@ -240,7 +249,7 @@ export class QueensGame {
   // Scratch
 
   beginScratch(): void {
-    if (this.scratchState || this.solved) return;
+    if (this.scratchState || this.over) return;
     this.scratchState = { base: this.marks.slice(), depth: this.undoStack.length, redo: this.redoStack };
     this.redoStack = [];
     this.lastTap = this.paintEntry = null;
@@ -284,11 +293,13 @@ export class QueensGame {
   // ------------------------------------------------------------------------------------------
 
   private afterQueen(cell: QCell): void {
+    if (this.lost) return; // Keep checks its queens in turn: the game may end partway through them
     const correct = this.isSolutionCell(cell);
     const conflicts = this.clashes(cell);
-    if (!correct && this.settings.checkMistakes) this.mistakes++;
+    if (!correct) this.countMistake();
     this.emit({ type: "queen", cell, correct, conflicts });
-    if (correct) {
+    if (this.lost) this.emit({ type: "lost" });
+    else if (correct) {
       const units: Unit[] = [
         { type: "row", index: rowOf(cell, this.n) },
         { type: "col", index: colOf(cell, this.n) },
@@ -297,6 +308,14 @@ export class QueensGame {
       this.emit({ type: "complete", cell, units });
       this.checkSolved();
     }
+  }
+
+  /** A wrong queen, counted if mistakes are being flagged. Going over the limit loses the game. */
+  private countMistake(): void {
+    if (!this.settings.checkMistakes) return;
+    this.mistakes++;
+    const limit = this.settings.mistakeLimit;
+    this.lost = limit !== null && this.mistakes > limit;
   }
 
   private checkSolved(): void {
@@ -308,14 +327,14 @@ export class QueensGame {
   }
 
   clearAll(): void {
-    if (this.solved) return;
+    if (this.over) return;
     const changed = this.commit([...this.marks].map((m, c) => ({ cell: c, from: m, to: EMPTY })));
     if (changed.length) this.emit({ type: "marks", cells: changed.map((c) => c.cell) });
   }
 
-  /** Once solved, history is closed: undoing and redoing would solve the puzzle (and score it) twice. */
+  /** Once over, history is closed: undoing and redoing would solve the puzzle (and score it) twice, or dodge a loss. */
   undo(): void {
-    if (this.solved || !this.canUndo()) return;
+    if (this.over || !this.canUndo()) return;
     const e = this.undoStack.pop();
     if (!e) return;
     this.lastTap = this.paintEntry = null;
@@ -326,7 +345,7 @@ export class QueensGame {
   }
 
   redo(): void {
-    if (this.solved) return;
+    if (this.over) return;
     const e = this.redoStack.pop();
     if (!e) return;
     this.lastTap = this.paintEntry = null;
@@ -346,7 +365,7 @@ export class QueensGame {
   }
 
   applyHint(h: QueensHint): void {
-    if (this.solved || this.scratchState) return;
+    if (this.over || this.scratchState) return;
     this.hintsUsed++;
     const changes: Change[] = [];
     if (h.kind === "step" && h.step) {

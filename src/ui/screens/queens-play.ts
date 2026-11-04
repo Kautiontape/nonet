@@ -10,16 +10,16 @@ import { clearSaved, loadSaved, storeSaved, type App, type Screen } from "../app
 import { HintSheet } from "../components/hint-sheet";
 import { openPause, timerButton } from "../components/pause";
 import { QueensBoard } from "../components/queens-board";
-import { showResult } from "../components/result-banner";
+import { showLoss, showResult } from "../components/result-banner";
 import { clearToast, toast } from "../components/toast";
 import { flip, formatTime, h, svgIcon } from "../dom";
 import { callout } from "../fx/callout";
 import { enterLevel, leaveLevel } from "../fx/levels";
 import { buzz } from "../haptics";
 import { ICONS } from "../icons";
-import { DIFFICULTY_LABEL } from "../messages";
+import { DIFFICULTY_LABEL, mistakeCount } from "../messages";
 import { REGION_COLORS } from "../palette";
-import { onSettings, settings, updateSettings } from "../settings";
+import { flagsMistakes, mistakesAllowed, onSettings, settings, updateSettings } from "../settings";
 import { sound } from "../sound";
 import { finishPuzzle, firstTime, loadProgress, recordHint } from "../store";
 import { openLearn } from "./learn";
@@ -81,7 +81,7 @@ class QueensPlay implements Screen {
     private level: number,
   ) {
     this.game = new QueensGame(puzzle, saved);
-    this.game.settings.checkMistakes = settings().checkMistakes;
+    this.applyGameSettings();
     this.board = new QueensBoard(puzzle, {
       onTap: (c) => this.tap(c),
       onDoubleTap: (c) => this.doubleTap(c),
@@ -138,7 +138,7 @@ class QueensPlay implements Screen {
     );
     this.offs.push(this.game.on((e) => this.onEvent(e)));
     this.offs.push(onSettings(() => {
-      this.game.settings.checkMistakes = settings().checkMistakes;
+      this.applyGameSettings();
       this.render();
     }));
     // Undo/redo use Ctrl/⌘; the rest are bare keys (Ctrl/⌘/Alt combinations stay the browser's),
@@ -187,7 +187,7 @@ class QueensPlay implements Screen {
     window.setTimeout(() => delete this.el.dataset.entering, ms);
   }
 
-  /** On to the next level: the solved board leaves, the next one arrives. Waits out open overlays. */
+  /** On to the next level: the finished board leaves, the next one arrives. Waits out open overlays. */
   private advance(): void {
     if (document.querySelector(".overlay")) {
       this.advanceTimer = window.setTimeout(() => this.advance(), 600);
@@ -198,13 +198,19 @@ class QueensPlay implements Screen {
     this.advanceTimer = window.setTimeout(() => void this.app.play("queens", this.difficulty, false, this.puzzle.id), ms);
   }
 
+  private applyGameSettings(): void {
+    const st = settings();
+    this.game.settings.checkMistakes = flagsMistakes(st);
+    this.game.settings.mistakeLimit = mistakesAllowed(st);
+  }
+
   private render(): void {
     const g = this.game;
     const st = settings();
     const base = g.scratchBase;
     // Only real queens are ever called wrong: judging a scratch queen would give the answer away.
     const wrong = new Set<QCell>();
-    if (st.checkMistakes) for (const q of g.queens()) if (!g.isSolutionCell(q) && (!base || base[q] === QUEEN)) wrong.add(q);
+    if (flagsMistakes(st)) for (const q of g.queens()) if (!g.isSolutionCell(q) && (!base || base[q] === QUEEN)) wrong.add(q);
     const attacked = st.autoCross ? g.attacked() : null;
     // Scratch marks, and the auto-✕s that only a scratch queen causes, are drawn sketchily.
     let scratch: Set<QCell> | undefined;
@@ -228,7 +234,7 @@ class QueensPlay implements Screen {
     this.progressEl.style.width = `${(p * 100).toFixed(1)}%`;
     this.timerEl.textContent = st.showTimer ? formatTime(g.elapsedMs) : "";
     this.statsEl.replaceChildren(
-      h("span", { class: g.mistakes ? "bad" : "" }, `Mistakes ${g.mistakes}`),
+      h("span", { class: g.mistakes ? "bad" : "" }, mistakeCount(g.mistakes, mistakesAllowed(st))),
       g.scratching ? h("span", { class: "notes-flag" }, "✎ Scratch") : h("span", null, `Hints ${g.hintsUsed}`),
       h("span", { class: "dim" }, `${g.queens().length} / ${g.n} queens`),
     );
@@ -284,7 +290,7 @@ class QueensPlay implements Screen {
   /** Scratch on, or off — which wipes it (Keep, on the scratch bar, makes it real instead). */
   private toggleScratch(): void {
     sound.unlock();
-    if (this.game.solved) return;
+    if (this.game.over) return;
     if (this.sheet.isOpen) this.closeHint();
     if (this.game.scratching) this.game.wipeScratch();
     else this.game.beginScratch();
@@ -345,11 +351,11 @@ class QueensPlay implements Screen {
           sound.mistake();
           buzz("mistake");
           toast(conflictText(this.game, e.cell, e.conflicts[0]!), "bad");
-        } else if (!e.correct && settings().checkMistakes) {
+        } else if (!e.correct && flagsMistakes(settings())) {
           fx.burst(p.x, p.y, "#ff4d6d", { count: 10, speed: 120, size: 6 });
           sound.mistake();
           buzz("mistake");
-          toast("That queen doesn't fit the solution. Hint can show you why.", "bad");
+          toast(this.game.lost ? "That queen doesn't fit the solution." : "That queen doesn't fit the solution. Hint can show you why.", "bad");
         } else {
           fx.burst(p.x, p.y, color, { count: 22, speed: 240, size: 9 });
           fx.ring(p.x, p.y, color, this.board.cellSize() * 1.4, 0.7, 3);
@@ -380,6 +386,9 @@ class QueensPlay implements Screen {
       }
       case "solved":
         this.finale();
+        break;
+      case "lost":
+        this.gameOver();
         break;
       default:
         break;
@@ -418,9 +427,23 @@ class QueensPlay implements Screen {
     this.advanceTimer = window.setTimeout(() => this.advance(), ADVANCE_MS);
   }
 
+  /** Over the mistake limit: the board locks, the stats show, and the next level comes anyway. Nothing is scored. */
+  private gameOver(): void {
+    const g = this.game;
+    this.el.dataset.lost = "true";
+    this.closeHint();
+    const box = this.board.el.getBoundingClientRect();
+    callout("GAME OVER", { size: "huge", color: LOST_COLOR, y: box.top + box.height * 0.4 });
+    this.app.bg.pulse(innerWidth / 2, box.top + box.height / 2, LOST_COLOR, 2);
+    clearSaved("queens");
+    const result = { mode: "queens", difficulty: this.difficulty, level: this.level, time: g.elapsedMs, mistakes: g.mistakes, hints: g.hintsUsed, progress: g.progress() };
+    window.setTimeout(() => showLoss(result), 600);
+    this.advanceTimer = window.setTimeout(() => this.advance(), ADVANCE_MS);
+  }
+
   private openHint(): void {
     sound.unlock();
-    if (this.game.solved) return;
+    if (this.game.over) return;
     if (this.game.scratching) {
       toast("Hints read your real board: Keep or Wipe the scratch first.", "info");
       return;
@@ -456,7 +479,7 @@ class QueensPlay implements Screen {
   }
 
   private onTick(): void {
-    if (document.hidden || this.game.solved || document.querySelector(".overlay")) return;
+    if (document.hidden || this.game.over || document.querySelector(".overlay")) return;
     this.game.elapsedMs += 1000;
     if (settings().showTimer) this.timerEl.textContent = formatTime(this.game.elapsedMs);
     if (Math.round(this.game.elapsedMs / 1000) % 5 === 0) this.save();
@@ -464,13 +487,13 @@ class QueensPlay implements Screen {
 
   /** The cover goes up and the timer holds. Saved first, in case they don't come back. */
   private pause(): void {
-    if (this.game.solved) return;
+    if (this.game.over) return;
     this.save();
     openPause(settings().showTimer ? formatTime(this.game.elapsedMs) : null);
   }
 
   private save(): void {
-    if (this.game.solved || this.discard) return;
+    if (this.game.over || this.discard) return;
     storeSaved("queens", { difficulty: this.difficulty, entry: encodeQueens(this.puzzle), state: this.game.toJSON() });
   }
 
@@ -490,13 +513,14 @@ class QueensPlay implements Screen {
       h(
         "div",
         { class: "menu-panel" },
-        !this.game.solved && item("Pause", ICONS.pause, () => this.pause()),
+        !this.game.over && item("Pause", ICONS.pause, () => this.pause()),
         item("New puzzle", ICONS.next, () => void this.app.play("queens", this.difficulty, false, this.puzzle.id)),
-        item("Restart this puzzle", ICONS.restart, () => {
-          this.discard = true;
-          storeSaved("queens", { difficulty: this.difficulty, entry: encodeQueens(this.puzzle), state: new QueensGame(this.puzzle).toJSON() });
-          void this.app.play("queens", this.difficulty, true);
-        }),
+        !this.game.lost &&
+          item("Restart this puzzle", ICONS.restart, () => {
+            this.discard = true;
+            storeSaved("queens", { difficulty: this.difficulty, entry: encodeQueens(this.puzzle), state: new QueensGame(this.puzzle).toJSON() });
+            void this.app.play("queens", this.difficulty, true);
+          }),
         item("Scores", ICONS.trophy, () => openScores()),
         item("How to play & techniques", ICONS.book, () => openLearn("last-cell")),
         item("Settings", ICONS.gear, () => openSettings()),
@@ -509,6 +533,9 @@ class QueensPlay implements Screen {
 
 /** From the solve to the next level: the fireworks play and the finale's chord resolves first. */
 const ADVANCE_MS = 2400;
+
+/** The mistake red (style.css --bad): the loss's callout and pulse. */
+const LOST_COLOR = "#ff4d6d";
 
 function conflictText(g: QueensGame, a: QCell, b: QCell): string {
   const n = g.n;

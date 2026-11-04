@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { applyNextHint, cellLocator, digitKey, landed, packOf, playUrl, readBoard, solveWithHints } from "./helpers";
 
@@ -1147,4 +1147,172 @@ test("on a narrow phone the settings tabs scroll sideways; the page itself never
   ).toBe(true);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: "test-results/screens/settings-narrow.png" });
+});
+
+/** Start every page load under these mistake rules. */
+const playUnder = (page: Page, rules: { allowMistakes: string; mistakeLimit?: number; checkMistakes?: boolean }) =>
+  page.addInitScript((r) => localStorage.setItem("cagecoach.settings", JSON.stringify(r)), rules);
+
+/** Put a digit its own row already has into the `nth` empty square that can take one. */
+async function slip(page: Page, nth = 0): Promise<number> {
+  const board = await readBoard(page);
+  const target = board.filter((x) => !x.value && board.some((y) => y.r === x.r && y.value))[nth]!;
+  const clash = board.find((y) => y.r === target.r && y.value)!;
+  await cellLocator(page, target.cell).click();
+  await digitKey(page, Number(clash.value)).click();
+  return target.cell;
+}
+
+test("settings: Allow mistakes picks Yes, Limited with a number, or Hardcore; a limit keeps Flag mistakes on", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTestId("open-settings").click();
+  const sheet = page.getByTestId("settings");
+  await sheet.getByRole("tab", { name: "Play" }).click();
+  const choice = sheet.getByTestId("allow-mistakes");
+  const box = sheet.getByTestId("mistake-limit");
+  const flag = sheet.locator('input[data-key="checkMistakes"]');
+  await expect(choice.getByRole("radio", { name: "Yes" })).toHaveAttribute("aria-checked", "true");
+  await expect(box).toBeHidden();
+  await expect(flag).toBeEnabled();
+
+  // Flagging off is the player's choice; a limit overrides it, and Yes hands it back.
+  await sheet.getByRole("switch", { name: /Flag mistakes/ }).uncheck({ force: true });
+  await choice.getByRole("radio", { name: "Limited" }).click();
+  await expect(box).toBeVisible();
+  await expect(box).toHaveValue("3");
+  await expect(flag).toBeDisabled();
+  await expect(flag).toBeChecked();
+  await expect(sheet).toContainText("Always on while mistakes are limited.");
+  expect((await box.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await sheet.getByTestId("mistakes-row").screenshot({ path: "test-results/screens/allow-mistakes.png" });
+
+  const saved = () => page.evaluate(() => JSON.parse(localStorage.getItem("cagecoach.settings")!) as { allowMistakes: string; mistakeLimit: number });
+  await box.fill("7");
+  await expect.poll(saved).toMatchObject({ allowMistakes: "limited", mistakeLimit: 7 });
+  // Nothing typed, or nothing it could mean, puts the number back.
+  await box.fill("");
+  await box.blur();
+  await expect(box).toHaveValue("7");
+  await box.fill("0");
+  await box.blur();
+  await expect(box).toHaveValue("7");
+  await box.fill("500");
+  await box.blur();
+  await expect(box).toHaveValue("99");
+
+  await choice.getByRole("radio", { name: "Hardcore" }).click();
+  await expect(box).toBeHidden();
+  await expect(flag).toBeDisabled();
+  await choice.getByRole("radio", { name: "Limited" }).click();
+  await expect(box).toHaveValue("99"); // the number waits for Limited to come back
+  await choice.getByRole("radio", { name: "Yes" }).click();
+  await expect(flag).toBeEnabled();
+  await expect(flag).not.toBeChecked();
+});
+
+test("on a narrow phone the Allow mistakes row fits without pushing the page sideways", async ({ page }) => {
+  await page.setViewportSize({ width: 340, height: 720 });
+  await playUnder(page, { allowMistakes: "limited" });
+  await page.goto("/");
+  await page.getByTestId("open-settings").click();
+  await page.getByTestId("settings").getByRole("tab", { name: "Play" }).click();
+  const row = page.getByTestId("mistakes-row");
+  await expect(page.getByTestId("mistake-limit")).toBeVisible();
+  expect(await row.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: "test-results/screens/allow-mistakes-narrow.png" });
+});
+
+test("hardcore: one mistake loses the puzzle — the board locks, the stats show, and the next one comes without scoring", async ({ page }) => {
+  await playUnder(page, { allowMistakes: "hardcore" });
+  const entry = packOf("classic-easy").puzzles[0]!;
+  await page.goto(playUrl("classic-easy", entry.id));
+  await readBoard(page);
+  await expect(page.locator(".stats")).toContainText("Hardcore");
+  const wrong = await slip(page);
+
+  await expect(page.locator('.play[data-lost="true"]')).toBeVisible();
+  await expect(cellLocator(page, wrong)).toHaveClass(/wrong/);
+  await expect(page.getByTestId("toast")).toContainText("already has");
+  const result = page.getByTestId("result");
+  await expect(result).toContainText("Game over");
+  await expect(result).toContainText("1mistake");
+  await expect(result).toContainText("0hints0%solved"); // the givens aren't the player's doing
+  await page.screenshot({ path: "test-results/screens/game-over.png" });
+
+  // No way back: the controls go quiet, and their keys do nothing either.
+  await expect(page.getByTestId("tool-undo")).toHaveCSS("pointer-events", "none");
+  await expect(digitKey(page, 1)).toHaveCSS("pointer-events", "none");
+  await page.keyboard.press("Control+z");
+  await expect(cellLocator(page, wrong)).toHaveClass(/wrong/);
+  await page.keyboard.press("h");
+  await expect(page.getByTestId("hint-sheet")).not.toHaveClass(/open/);
+
+  // The next board arrives by itself, at the same level, and nothing was scored.
+  const givens = () => page.$$eval(".board .cell", (els) => els.map((el) => el.querySelector(".v")?.textContent || "0").join(""));
+  await expect(page.locator(".play:not([data-lost])")).toBeVisible({ timeout: 8000 });
+  await landed(page);
+  expect(await givens()).not.toBe(entry.g);
+  await expect(page.locator(".play .title")).toContainText("Lv 1");
+  await expect(page.locator(".stats")).toContainText("Hardcore");
+  const progress = await page.evaluate(() => JSON.parse(localStorage.getItem("cagecoach.progress") ?? "{}") as { solved?: Record<string, string[]> });
+  expect(Object.values(progress.solved ?? {}).flat()).toEqual([]);
+  expect(await page.evaluate(() => localStorage.getItem("cagecoach.results"))).toBeNull();
+});
+
+test("a lost game can't be picked up again: leaving, or the menu, offers no way back to it", async ({ page }) => {
+  await playUnder(page, { allowMistakes: "hardcore" });
+  await page.goto(playUrl("classic-easy"));
+  await readBoard(page);
+  await slip(page);
+  await expect(page.locator('.play[data-lost="true"]')).toBeVisible();
+  await page.getByRole("button", { name: "Menu", exact: true }).click();
+  const menu = page.getByRole("dialog", { name: "Game menu" });
+  await expect(menu.getByRole("button", { name: "New puzzle" })).toBeVisible();
+  await expect(menu.getByRole("button", { name: "Restart this puzzle" })).toHaveCount(0);
+  await expect(menu.getByRole("button", { name: "Pause" })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await page.getByTestId("back").click();
+  await expect(page.getByTestId("resume-classic")).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByTestId("resume-classic")).toHaveCount(0);
+});
+
+test("limited: the box's number of mistakes are forgiven, and one more loses", async ({ page }) => {
+  await playUnder(page, { allowMistakes: "limited", mistakeLimit: 1 });
+  await page.goto(playUrl("classic-easy"));
+  await readBoard(page);
+  await expect(page.locator(".stats")).toContainText("Mistakes 0 / 1");
+  await slip(page, 0);
+  await expect(page.locator(".stats")).toContainText("Mistakes 1 / 1");
+  await expect(page.locator(".play[data-lost]")).toHaveCount(0);
+  await slip(page, 1);
+  await expect(page.locator('.play[data-lost="true"]')).toBeVisible();
+  await expect(page.getByTestId("result")).toContainText("2mistakes");
+});
+
+test("a limit counts mistakes even with Flag mistakes off", async ({ page }) => {
+  await playUnder(page, { allowMistakes: "hardcore", checkMistakes: false });
+  await page.goto(playUrl("classic-easy"));
+  await readBoard(page);
+  const wrong = await slip(page);
+  await expect(cellLocator(page, wrong)).toHaveClass(/wrong/);
+  await expect(page.locator('.play[data-lost="true"]')).toBeVisible();
+});
+
+test("queens hardcore: a wrong queen loses the puzzle and the next board follows", async ({ page }) => {
+  await playUnder(page, { allowMistakes: "hardcore" });
+  await page.goto(playUrl("queens-easy"));
+  const cells = page.locator(".qcell");
+  await expect(cells.first()).toBeVisible();
+  await landed(page);
+  await expect(page.locator(".stats")).toContainText("Hardcore");
+  // One row holds one queen, so the second of these is wrong whatever the first was.
+  await cells.nth(0).dblclick();
+  await page.waitForTimeout(450);
+  if (!(await page.locator(".play[data-lost]").count())) await cells.nth(2).dblclick();
+  await expect(page.locator('.play[data-lost="true"]')).toBeVisible();
+  await expect(page.getByTestId("result")).toContainText("Game over");
+  await expect(page.locator(".play:not([data-lost])")).toBeVisible({ timeout: 8000 });
+  await expect(page.locator(".play .title")).toContainText("Lv 1");
 });

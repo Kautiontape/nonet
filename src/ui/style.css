@@ -2219,6 +2219,14 @@ body:has(.play.hint-open) .toasts {
   background: #fff;
 }
 
+.switch input:disabled {
+  cursor: default;
+}
+
+.switch input:disabled + i {
+  opacity: 0.45;
+}
+
 .set-row.backup,
 .set-row.sync {
   flex-direction: column;
@@ -2328,6 +2336,48 @@ body:has(.play.hint-open) .toasts {
   color: #fff;
   background: color-mix(in srgb, var(--a1) 30%, transparent);
   box-shadow: 0 0 14px -4px var(--a1);
+}
+
+.set-row.mistakes {
+  flex-wrap: wrap;
+}
+
+.set-row.mistakes > div:first-child {
+  flex: 1 1 130px;
+}
+
+.limit-row {
+  flex: 1 0 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  font-size: 14px;
+  color: var(--ink-dim);
+}
+
+.limit-row[hidden] {
+  display: none;
+}
+
+.limit-input {
+  width: 76px;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ink);
+  font: inherit;
+  font-size: 18px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.limit-input:focus {
+  outline: 2px solid var(--ink-dim);
+  outline-offset: 2px;
 }
 
 .overlay.menu {
@@ -2634,6 +2684,22 @@ body:has(.result:not(.out)) .play :is(.topbar, .progress, .stats) {
   color: #fff;
   text-shadow: 0 0 14px var(--a1);
   white-space: nowrap;
+}
+
+.play[data-lost] :is(.tools, .numpad) {
+  opacity: 0.45;
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+
+.result.lost {
+  border-color: color-mix(in srgb, var(--bad) 50%, transparent);
+  box-shadow: 0 14px 40px -14px rgba(0, 0, 0, 0.8), 0 0 30px -12px var(--bad);
+}
+
+.result.lost .result-title {
+  color: var(--bad);
+  text-shadow: 0 0 14px color-mix(in srgb, var(--bad) 60%, transparent);
 }
 
 .result.perfect .result-title {

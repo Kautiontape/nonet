@@ -57,7 +57,7 @@ src/
     sync.ts               # sync wired to the browser: store adapter, triggers, home refresh
     screens/              # home, sudoku-play, queens-play, learn, settings-sheet, changelog, scores
     components/           # sudoku-board (+ cage-paths), queens-board, numpad, hint-sheet, toast,
-                          # result-banner (post-level stats strip), pause (cover + timer button)
+                          # result-banner (post-level stats strip, solved or lost), pause (cover + timer button)
     fx/                   # background (nebula), particles (FX canvas), callout,
                           # levels (8 themed entrances/exits) + level-order (rotation, spiral)
     audio/                # synth.ts (engine), theory.ts (themes/harmony), dsp.ts (IR, noise)

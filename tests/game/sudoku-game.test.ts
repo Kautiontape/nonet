@@ -535,3 +535,110 @@ describe("hints with the auto-note layer on", () => {
     }
   });
 });
+
+describe("SudokuGame mistake limit", () => {
+  const WRONG = [cell("r1c3"), cell("r1c4"), cell("r1c6"), cell("r1c7")]; // empty squares; a 5 is wrong in each
+
+  const limited = (limit: number | null) => {
+    const g = new SudokuGame(WIKI);
+    g.settings.mistakeLimit = limit;
+    return { g, events: track(g) };
+  };
+  const slip = (g: SudokuGame, n: number) => WRONG.slice(0, n).forEach((c) => g.place(c, 5));
+
+  it("no limit: mistakes never end the game", () => {
+    const { g, events } = limited(null);
+    slip(g, 4);
+    expect(g.mistakes).toBe(4);
+    expect(g.lost).toBe(false);
+    expect(events.some((e) => e.type === "lost")).toBe(false);
+  });
+
+  it("a limit of 3 forgives three mistakes and loses on the fourth", () => {
+    const { g, events } = limited(3);
+    slip(g, 3);
+    expect(g.lost).toBe(false);
+    g.place(WRONG[3]!, 5);
+    expect(g.mistakes).toBe(4);
+    expect(g.lost).toBe(true);
+    expect(events.filter((e) => e.type === "lost")).toHaveLength(1);
+  });
+
+  it("hardcore loses on the first mistake, after the mistake's own feedback", () => {
+    const { g, events } = limited(0);
+    g.place(cell("r1c3"), 4); // right: nothing happens
+    expect(g.lost).toBe(false);
+    g.place(WRONG[1]!, 5);
+    expect(g.lost).toBe(true);
+    expect(events.slice(-2).map((e) => e.type)).toEqual(["place", "lost"]);
+  });
+
+  it("a mistake nobody flags counts for nothing", () => {
+    const { g } = limited(0);
+    g.settings.checkMistakes = false;
+    g.place(WRONG[0]!, 5);
+    expect(g.mistakes).toBe(0);
+    expect(g.lost).toBe(false);
+  });
+
+  it("lowering the limit mid-game loses nothing until the next mistake", () => {
+    const { g } = limited(null);
+    slip(g, 2);
+    g.settings.mistakeLimit = 0;
+    g.place(cell("r1c6"), 8); // right
+    expect(g.lost).toBe(false);
+    g.place(WRONG[3]!, 5);
+    expect(g.lost).toBe(true);
+  });
+
+  it("undoing a mistake doesn't take it back", () => {
+    const { g } = limited(1);
+    g.place(WRONG[0]!, 5);
+    g.undo();
+    g.place(WRONG[0]!, 5);
+    expect(g.mistakes).toBe(2);
+    expect(g.lost).toBe(true);
+  });
+
+  it("a lost board is locked: nothing changes it, and there's no undoing out", () => {
+    const { g } = limited(0);
+    g.toggleNote(cell("r9c1"), 3);
+    g.place(WRONG[0]!, 5);
+    const before = JSON.stringify(g.toJSON());
+    const events = track(g);
+
+    g.place(cell("r1c4"), 6);
+    g.erase(WRONG[0]!);
+    g.eraseMany([WRONG[0]!, cell("r9c1")]);
+    g.toggleNote(cell("r9c2"), 1);
+    g.toggleNoteMany([cell("r9c2"), cell("r9c3")], 1);
+    g.clearNotes();
+    g.undo();
+    g.redo();
+    g.applyHint(g.hint());
+
+    expect(JSON.stringify(g.toJSON())).toBe(before);
+    expect(events).toEqual([]);
+  });
+
+  it("how much was solved counts the player's squares, not the givens, and no wrong digit", () => {
+    const { g } = limited(null);
+    expect(g.solvedShare()).toBe(0);
+    g.place(cell("r1c3"), 4); // right
+    g.place(cell("r1c4"), 5); // wrong
+    expect(g.solvedShare()).toBeCloseTo(1 / 51); // WIKI gives 30 of the 81
+  });
+
+  it("a lost killer board keeps its crossed-out combinations as they were", () => {
+    const p = packPuzzle("killer-easy", 0);
+    const g = new SudokuGame(p);
+    g.settings.mistakeLimit = 0;
+    const c = p.cages.find((k) => k.cells.length >= 2)!;
+    const combo = cageCombos(c.cells.length, c.sum)[0]!;
+    const wrong = (Number(p.solution![c.cells[0]!]) % 9) + 1;
+    g.place(c.cells[0]!, wrong as Digit);
+    expect(g.lost).toBe(true);
+    g.toggleStrike(c, combo);
+    expect(g.isStruck(c, combo)).toBe(false);
+  });
+});

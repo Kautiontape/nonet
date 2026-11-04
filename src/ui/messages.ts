@@ -5,7 +5,8 @@ import type { MistakeReason } from "../game/sudoku-game";
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-export function mistakeText(reason: MistakeReason | undefined, digit: number): string {
+/** `over`: this was the mistake that lost the game, so Hint can't be offered. */
+export function mistakeText(reason: MistakeReason | undefined, digit: number, over = false): string {
   if (!reason) return "That doesn't match the solution.";
   switch (reason.kind) {
     case "house":
@@ -22,8 +23,14 @@ export function mistakeText(reason: MistakeReason | undefined, digit: number): s
       return `${lead}, so it can only be ${combos.length > 4 ? `${combos.slice(0, 4).join(", ")}…` : combos.join(" or ")} — no ${digit}.`;
     }
     default:
-      return "That doesn't match the solution. Hint can show you why.";
+      return over ? "That doesn't match the solution." : "That doesn't match the solution. Hint can show you why.";
   }
+}
+
+/** The stats line's mistake count, against the limit if there is one. */
+export function mistakeCount(mistakes: number, limit: number | null): string {
+  if (limit === null) return `Mistakes ${mistakes}`;
+  return limit ? `Mistakes ${mistakes} / ${limit}` : "Hardcore";
 }
 
 export const DIFFICULTY_LABEL: Record<string, string> = {

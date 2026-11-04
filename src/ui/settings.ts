@@ -3,6 +3,10 @@ import { load, save, saveQuiet } from "./store";
 
 export type EffectsLevel = "low" | "normal" | "epic";
 
+/** Yes: mistakes never end a game. Limited: `mistakeLimit` of them are forgiven. Hardcore: none are. */
+export const ALLOW_MISTAKES = ["yes", "limited", "hardcore"] as const;
+export type AllowMistakes = (typeof ALLOW_MISTAKES)[number];
+
 export interface Settings {
   sfx: boolean;
   music: boolean;
@@ -14,6 +18,9 @@ export interface Settings {
   /** Show the auto-note layer: digits the rules still allow, under the player's own notes. */
   autoNotes: boolean;
   checkMistakes: boolean;
+  allowMistakes: AllowMistakes;
+  /** Mistakes forgiven under Limited. Kept while another mode is on, so it's there to come back to. */
+  mistakeLimit: number;
   showTimer: boolean;
   /** Killer: tint cages in alternating colours. */
   cageTint: boolean;
@@ -33,6 +40,8 @@ export const DEFAULT_SETTINGS: Settings = {
   autoClearNotes: true,
   autoNotes: false,
   checkMistakes: true,
+  allowMistakes: "yes",
+  mistakeLimit: 3,
   showTimer: true,
   cageTint: true,
   showCombos: true,
@@ -43,9 +52,24 @@ export const DEFAULT_SETTINGS: Settings = {
  * The settings that follow the player between devices: how the game plays. Sound, haptics,
  * volume and the effects level are about the device and stay with it.
  */
-export const SYNCED_KEYS = ["highlightSame", "autoClearNotes", "autoNotes", "checkMistakes", "showTimer", "cageTint", "showCombos", "autoCross"] as const;
+export const SYNCED_KEYS = ["highlightSame", "autoClearNotes", "autoNotes", "checkMistakes", "allowMistakes", "mistakeLimit", "showTimer", "cageTint", "showCombos", "autoCross"] as const;
 export type SyncedKey = (typeof SYNCED_KEYS)[number];
 export type SyncedSettings = Pick<Settings, SyncedKey>;
+
+const LIMIT_MAX = 99;
+
+/** A number from the Limited box as the setting holds it: whole, 1 to 99 (0 is Hardcore). */
+export const clampLimit = (n: number): number => Math.min(LIMIT_MAX, Math.max(1, Math.round(n)));
+
+/** Mistakes a game forgives before it's lost; null when they never end one. */
+export function mistakesAllowed(s: Settings): number | null {
+  return s.allowMistakes === "yes" ? null : s.allowMistakes === "hardcore" ? 0 : s.mistakeLimit;
+}
+
+/** Whether wrong digits are flagged and counted. A limit needs them counted, so it keeps this on. */
+export function flagsMistakes(s: Settings): boolean {
+  return s.checkMistakes || s.allowMistakes !== "yes";
+}
 
 type Listener = (s: Settings, changed: (keyof Settings)[]) => void;
 const listeners = new Set<Listener>();
@@ -75,6 +99,13 @@ export function syncedSettings(): SyncedSettings {
   return Object.fromEntries(SYNCED_KEYS.map((k) => [k, current[k]])) as SyncedSettings;
 }
 
+/** Whether a value from another device is one this setting can hold. */
+function validSynced(k: SyncedKey, v: unknown): boolean {
+  if (k === "allowMistakes") return (ALLOW_MISTAKES as readonly unknown[]).includes(v);
+  if (k === "mistakeLimit") return typeof v === "number" && v === clampLimit(v);
+  return typeof v === "boolean";
+}
+
 /**
  * Settings the merge brought in from another device: applied and saved, with that device's
  * time, but not stamped as a change made here (or two devices would hand them back and forth).
@@ -83,7 +114,7 @@ export function applySyncedSettings(values: Partial<SyncedSettings>, at: number)
   const patch: Partial<Settings> = {};
   for (const k of SYNCED_KEYS) {
     const v = values[k];
-    if (typeof v === "boolean" && v !== current[k]) patch[k] = v;
+    if (validSynced(k, v) && v !== current[k]) Object.assign(patch, { [k]: v });
   }
   const changed = Object.keys(patch) as (keyof Settings)[];
   current = { ...current, ...patch };
