@@ -2686,13 +2686,184 @@ body:has(.result:not(.out)) .play :is(.topbar, .progress, .stats) {
   white-space: nowrap;
 }
 
-.play[data-lost] :is(.tools, .numpad) {
+.play[data-lost] :is(.tools, .numpad, .qhelp) {
   opacity: 0.45;
   pointer-events: none;
   transition: opacity 0.3s;
 }
 
+/* Game over: the answer, softer than what the player placed. */
+.cell.revealed .v {
+  color: var(--dc);
+  opacity: 0.6;
+  animation: revealed-in 0.5s ease-out both;
+}
+
+.qcell.revealed .crown {
+  opacity: 0.6;
+  animation: revealed-in 0.5s ease-out both;
+}
+
+@keyframes revealed-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* A wrong digit and its answer trade places, red for green; ::after is the answer. */
+.cell.swap {
+  animation: swap-cell 2.4s ease-in-out infinite;
+}
+
+.cell.swap .v {
+  animation: swap-wrong 2.4s ease-in-out infinite;
+}
+
+.cell.swap .v::after {
+  content: attr(data-answer);
+  position: absolute;
+  inset: 0;
+  color: var(--ac);
+  text-shadow: 0 0 12px var(--ac);
+  animation: swap-right 2.4s ease-in-out infinite;
+}
+
+@keyframes swap-cell {
+  0%,
+  40%,
+  100% {
+    background-color: rgba(255, 77, 109, 0.22);
+  }
+  50%,
+  90% {
+    background-color: rgba(61, 255, 154, 0.16);
+  }
+}
+
+@keyframes swap-wrong {
+  0%,
+  40%,
+  100% {
+    color: var(--bad);
+    text-shadow: 0 0 14px var(--bad);
+  }
+  50%,
+  90% {
+    color: transparent;
+    text-shadow: none;
+  }
+}
+
+@keyframes swap-right {
+  0%,
+  40%,
+  100% {
+    opacity: 0;
+  }
+  50%,
+  90% {
+    opacity: 1;
+  }
+}
+
+.qcell.swap-out .crown {
+  animation: swap-right 2.4s ease-in-out infinite reverse;
+}
+
+.qcell.swap-in .crown {
+  animation: swap-right 2.4s ease-in-out infinite;
+  filter: drop-shadow(0 0 6px var(--good)) drop-shadow(0 0 12px var(--good));
+}
+
+/* Held still (Calm, reduced motion): the answer, with the wrong digit small at its shoulder. */
+[data-effects="low"] :is(.cell.swap, .cell.swap .v, .cell.revealed .v, .qcell.revealed .crown, .qcell.swap-out .crown, .qcell.swap-in .crown),
+[data-effects="low"] .cell.swap .v::after {
+  animation: none;
+}
+
+[data-effects="low"] .cell.swap .v {
+  color: transparent;
+  text-shadow: none;
+}
+
+[data-effects="low"] .cell.swap .v::before {
+  content: attr(data-wrong);
+  position: absolute;
+  top: -0.3em;
+  right: -0.75em;
+  font-size: 0.45em;
+  color: var(--bad);
+  text-decoration: line-through;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :is(.cell.swap, .cell.swap .v, .cell.revealed .v, .qcell.revealed .crown, .qcell.swap-out .crown, .qcell.swap-in .crown),
+  .cell.swap .v::after {
+    animation: none;
+  }
+
+  .cell.swap .v {
+    color: transparent;
+    text-shadow: none;
+  }
+
+  .cell.swap .v::before {
+    content: attr(data-wrong);
+    position: absolute;
+    top: -0.3em;
+    right: -0.75em;
+    font-size: 0.45em;
+    color: var(--bad);
+    text-decoration: line-through;
+  }
+}
+
+/* Covers the whole window so nothing under it takes a tap, and a tap anywhere moves on. */
+.loss-hold {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0 16px calc(36px + env(safe-area-inset-bottom));
+  border: none;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.loss-hold:disabled {
+  cursor: default;
+}
+
+.loss-hold:focus {
+  outline: none;
+}
+
+.loss-hold span {
+  padding: 12px 22px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--a1) 50%, transparent);
+  background: rgba(10, 14, 40, 0.9);
+  font-weight: 600;
+  box-shadow: 0 0 22px -6px var(--a1);
+  transition: opacity 0.3s;
+}
+
+.loss-hold:disabled span {
+  opacity: 0;
+}
+
+.loss-hold:focus-visible span {
+  outline: 2px solid var(--ink-dim);
+  outline-offset: 2px;
+}
+
+/* Held, not dismissed: a tap goes through to the cover under it. */
 .result.lost {
+  pointer-events: none;
   border-color: color-mix(in srgb, var(--bad) 50%, transparent);
   box-shadow: 0 14px 40px -14px rgba(0, 0, 0, 0.8), 0 0 30px -12px var(--bad);
 }

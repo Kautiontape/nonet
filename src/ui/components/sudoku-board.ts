@@ -47,6 +47,8 @@ export interface BoardView {
   multi?: readonly CellId[];
   showWrong: boolean;
   cageTint: boolean;
+  /** A lost game: the answer fills every open square, and wrong digits trade places with theirs. */
+  reveal?: boolean;
 }
 
 const UNIT = 100; // SVG units per cell
@@ -312,20 +314,29 @@ export class SudokuBoard {
       const el = this.cellEls[c]!;
       const d = v.grid[c]!;
       const wrong = v.showWrong && d !== 0 && d !== v.solution[c];
+      const revealed = !!v.reveal && !d;
+      const swap = !!v.reveal && wrong;
+      const shown = revealed ? v.solution[c]! : d;
       const cls = el.classList;
       cls.toggle("given", v.given[c] === 1);
       cls.toggle("user", d !== 0 && v.given[c] !== 1);
       cls.toggle("filled", d !== 0);
       cls.toggle("wrong", wrong);
+      cls.toggle("revealed", revealed);
+      cls.toggle("swap", swap);
       cls.toggle("sel", c === sel);
       cls.toggle("msel", !!v.multi && v.multi.length > 1 && v.multi.includes(c));
       cls.toggle("peer", sel !== null && c !== sel && CELL_HOUSES[c]!.some((x) => selHouses!.includes(x)));
       cls.toggle("cage-peer", selCage >= 0 && c !== sel && this.cageOfCell[c] === selCage);
       cls.toggle("same", hd !== 0 && d === hd);
-      if (d) el.style.setProperty("--dc", DIGIT_COLORS[d]!);
-      this.valEls[c]!.textContent = d ? String(d) : "";
-      const notes = d ? 0 : v.notes[c]!;
-      const auto = d ? 0 : (v.auto?.[c] ?? 0) & ~notes;
+      if (shown) el.style.setProperty("--dc", DIGIT_COLORS[shown]!);
+      this.valEls[c]!.textContent = shown ? String(shown) : "";
+      if (swap) {
+        Object.assign(this.valEls[c]!.dataset, { answer: v.solution[c], wrong: d });
+        el.style.setProperty("--ac", DIGIT_COLORS[v.solution[c]!]!);
+      }
+      const notes = shown ? 0 : v.notes[c]!;
+      const auto = shown ? 0 : (v.auto?.[c] ?? 0) & ~notes;
       const ns = this.noteEls[c]!;
       for (let k = 1; k <= 9; k++) {
         const on = (notes & (1 << k)) !== 0;
@@ -338,8 +349,10 @@ export class SudokuBoard {
       }
       el.setAttribute(
         "aria-label",
-        d
-          ? `${cellName(c)}, ${d}${v.given[c] ? ", given" : ""}${wrong ? ", wrong" : ""}`
+        swap
+          ? `${cellName(c)}, ${d}, wrong, answer ${v.solution[c]}`
+          : shown
+          ? `${cellName(c)}, ${shown}${v.given[c] ? ", given" : ""}${wrong ? ", wrong" : ""}${revealed ? ", answer" : ""}`
           : `${cellName(c)}, empty${notes ? `, notes ${digitsOf(notes).join(" ")}` : ""}${auto ? `, auto ${digitsOf(auto).join(" ")}` : ""}`,
       );
     }

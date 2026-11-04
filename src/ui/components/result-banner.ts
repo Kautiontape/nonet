@@ -2,7 +2,8 @@
  * The results banner: after a level, a translucent strip across the top with the time, whether
  * it's a record, mistakes and hints — readable at a glance while the next level drops in below.
  * It never blocks play; it fades on its own, or sooner with a tap. Scores keeps the history.
- * A level lost to the mistake limit gets the same strip, with how far it got in place of a best.
+ * A level lost to the mistake limit gets the same strip, with how far it got in place of a best,
+ * and it stays: the play screen holds until the player moves on, then calls `hideResult`.
  */
 import { formatTime, h } from "../dom";
 import { DIFFICULTY_LABEL, MODE_LABEL } from "../messages";
@@ -47,7 +48,7 @@ export function showResult(r: ResultEntry, ms = 6500): void {
 }
 
 /** A level lost to the mistake limit. `progress` is how much of the board was right, 0 to 1. */
-export function showLoss(r: Pick<ResultEntry, "mode" | "difficulty" | "level" | "time" | "mistakes" | "hints"> & { progress: number }, ms = 6500): void {
+export function showLoss(r: Pick<ResultEntry, "mode" | "difficulty" | "level" | "time" | "mistakes" | "hints"> & { progress: number }): void {
   present(
     "result lost",
     h("span", { class: "result-head" }, kicker(r), h("b", { class: "result-title" }, "Game over")),
@@ -57,16 +58,28 @@ export function showLoss(r: Pick<ResultEntry, "mode" | "difficulty" | "level" | 
       stat(String(r.hints), word(r.hints, "hint"), r.hints ? "" : "clean"),
       stat(`${Math.round(r.progress * 100)}%`, "solved", "dim"),
     ],
-    ms,
   );
 }
 
-function present(cls: string, head: HTMLElement, stats: HTMLElement[], ms: number): void {
+/** Put a banner up: for `ms`, and a tap dismisses it. Without `ms` it stays until `hideResult`. */
+function present(cls: string, head: HTMLElement, stats: HTMLElement[], ms?: number): void {
   if (!layer) return;
-  const banner = h("div", { class: cls, "data-testid": "result", title: "Tap to dismiss", onclick: () => hide(banner) }, head, h("span", { class: "result-stats" }, ...stats));
+  const banner = h(
+    "div",
+    { class: cls, "data-testid": "result", title: ms ? "Tap to dismiss" : undefined, onclick: ms ? () => hide(banner) : undefined },
+    head,
+    h("span", { class: "result-stats" }, ...stats),
+  );
   layer.replaceChildren(banner);
   clearTimeout(timer);
-  timer = window.setTimeout(() => hide(banner), ms);
+  if (ms) timer = window.setTimeout(() => hide(banner), ms);
+}
+
+/** Fade the banner out now. */
+export function hideResult(): void {
+  clearTimeout(timer);
+  const banner = layer?.firstElementChild;
+  if (banner) hide(banner as HTMLElement);
 }
 
 function hide(banner: HTMLElement): void {

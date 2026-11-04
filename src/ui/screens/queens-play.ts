@@ -10,7 +10,8 @@ import { clearSaved, loadSaved, storeSaved, type App, type Screen } from "../app
 import { HintSheet } from "../components/hint-sheet";
 import { openPause, timerButton } from "../components/pause";
 import { QueensBoard } from "../components/queens-board";
-import { showLoss, showResult } from "../components/result-banner";
+import { lossHold } from "../components/loss-hold";
+import { hideResult, showLoss, showResult } from "../components/result-banner";
 import { clearToast, toast } from "../components/toast";
 import { flip, formatTime, h, svgIcon } from "../dom";
 import { callout } from "../fx/callout";
@@ -68,6 +69,8 @@ class QueensPlay implements Screen {
   /** After a solve: the countdown to the next level. */
   private advanceTimer = 0;
   private finished = false;
+  /** A lost game with its answer on the board. */
+  private revealed = false;
   private offs: (() => void)[] = [];
   private discard = false;
   private last: QCell = 0;
@@ -177,6 +180,7 @@ class QueensPlay implements Screen {
     this.save();
     clearInterval(this.tick);
     clearTimeout(this.advanceTimer);
+    if (this.game.lost) hideResult();
     for (const off of this.offs) off();
   }
 
@@ -221,7 +225,7 @@ class QueensPlay implements Screen {
         if (m !== EMPTY ? m !== base[c] : attacked?.[c] && !realAttacked?.[c]) scratch!.add(c);
       });
     }
-    this.board.render({ marks: g.marks, attacked, conflicts: g.conflicts(), wrong, scratch, scratching: g.scratching });
+    this.board.render({ marks: g.marks, attacked, conflicts: g.conflicts(), wrong, scratch, scratching: g.scratching, reveal: this.revealed });
     this.el.classList.toggle("scratch-mode", g.scratching);
     this.undoBtn.disabled = !g.canUndo();
     this.autoBtn.classList.toggle("on", st.autoCross);
@@ -427,18 +431,23 @@ class QueensPlay implements Screen {
     this.advanceTimer = window.setTimeout(() => this.advance(), ADVANCE_MS);
   }
 
-  /** Over the mistake limit: the board locks, the stats show, and the next level comes anyway. Nothing is scored. */
+  /** Over the mistake limit: the board locks and shows its answer, and holds with the stats until a tap moves on. Nothing is scored. */
   private gameOver(): void {
     const g = this.game;
     this.el.dataset.lost = "true";
     this.closeHint();
+    this.el.append(lossHold(() => (hideResult(), this.advance())));
     const box = this.board.el.getBoundingClientRect();
     callout("GAME OVER", { size: "huge", color: LOST_COLOR, y: box.top + box.height * 0.4 });
     this.app.bg.pulse(innerWidth / 2, box.top + box.height / 2, LOST_COLOR, 2);
     clearSaved("queens");
     const result = { mode: "queens", difficulty: this.difficulty, level: this.level, time: g.elapsedMs, mistakes: g.mistakes, hints: g.hintsUsed, progress: g.progress() };
-    window.setTimeout(() => showLoss(result), 600);
-    this.advanceTimer = window.setTimeout(() => this.advance(), ADVANCE_MS);
+    this.advanceTimer = window.setTimeout(() => {
+      showLoss(result);
+      this.revealed = true;
+      this.board.wave(this.last);
+      this.render();
+    }, REVEAL_MS);
   }
 
   private openHint(): void {
@@ -533,6 +542,9 @@ class QueensPlay implements Screen {
 
 /** From the solve to the next level: the fireworks play and the finale's chord resolves first. */
 const ADVANCE_MS = 2400;
+
+/** From the loss to the answer and stats: the last move lands first. */
+const REVEAL_MS = 600;
 
 /** The mistake red (style.css --bad): the loss's callout and pulse. */
 const LOST_COLOR = "#ff4d6d";

@@ -5,7 +5,7 @@ written for players. Read `docs/CHANGELOG-STYLE.md` before adding to it.
 
 ## Unreleased
 
-- **Play with stakes.** Settings → Play → Allow mistakes: Limited forgives the number you pick, Hardcore none; one more and the puzzle is lost.
+- **Play with stakes.** Settings → Play → Allow mistakes: Limited forgives the number you pick, Hardcore none; one more and the puzzle is lost, and you see the answer.
 
 ## 1.1.0 — 2026-10-18
 

@@ -31,6 +31,8 @@ export interface QueensView {
   /** Marks that are only a scratch (drawn sketchily), and whether a scratch is on at all. */
   scratch?: ReadonlySet<QCell>;
   scratching?: boolean;
+  /** A lost game: the answer's queens show, and each wrong queen trades places with its row's. */
+  reveal?: boolean;
 }
 
 const LONG_MS = 420;
@@ -152,19 +154,25 @@ export class QueensBoard {
 
   render(v: QueensView): void {
     this.board.classList.toggle("scratching", !!v.scratching);
+    const wrongRows = new Set([...v.wrong].map((q) => rowOf(q, this.n)));
     for (let c = 0; c < this.cells.length; c++) {
       const el = this.cells[c]!;
       const m = v.marks[c]!;
       const mark = el.firstElementChild as HTMLElement;
-      const isQueen = m === QUEEN;
-      const isCross = m === CROSS;
-      const auto = !isQueen && !isCross && v.attacked?.[c] === 1;
+      const answer = !!v.reveal && m !== QUEEN && this.puzzle.solution[rowOf(c, this.n)] === colOf(c, this.n);
+      const swapIn = answer && wrongRows.has(rowOf(c, this.n));
+      const isQueen = m === QUEEN || answer;
+      const isCross = m === CROSS && !v.reveal;
+      const auto = !isQueen && !isCross && !v.reveal && v.attacked?.[c] === 1;
       el.classList.toggle("queen", isQueen);
       el.classList.toggle("cross", isCross);
       el.classList.toggle("auto-x", auto);
-      el.classList.toggle("conflict", v.conflicts.has(c));
+      el.classList.toggle("conflict", !v.reveal && v.conflicts.has(c));
       el.classList.toggle("wrong", v.wrong.has(c));
       el.classList.toggle("scratch", !!v.scratch?.has(c));
+      el.classList.toggle("revealed", answer && !swapIn);
+      el.classList.toggle("swap-in", swapIn);
+      el.classList.toggle("swap-out", !!v.reveal && v.wrong.has(c));
       const want = isQueen ? "q" : isCross || auto ? "x" : "";
       if (mark.dataset.kind !== want) {
         mark.dataset.kind = want;
@@ -173,7 +181,7 @@ export class QueensBoard {
       const region = this.puzzle.regions[c]!;
       el.setAttribute(
         "aria-label",
-        `r${rowOf(c, this.n) + 1}c${colOf(c, this.n) + 1}, ${REGION_COLORS[region % REGION_COLORS.length]!.name}${isQueen ? ", queen" : isCross ? ", crossed" : ""}${v.scratch?.has(c) ? " (scratch)" : ""}`,
+        `r${rowOf(c, this.n) + 1}c${colOf(c, this.n) + 1}, ${REGION_COLORS[region % REGION_COLORS.length]!.name}${isQueen ? ", queen" : isCross ? ", crossed" : ""}${v.scratch?.has(c) ? " (scratch)" : ""}${answer ? ", answer" : v.reveal && v.wrong.has(c) ? ", wrong" : ""}`,
       );
     }
     this.applyHint();

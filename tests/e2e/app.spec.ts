@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { applyNextHint, cellLocator, digitKey, landed, packOf, playUrl, readBoard, solveWithHints } from "./helpers";
 
@@ -1223,13 +1223,14 @@ test("on a narrow phone the Allow mistakes row fits without pushing the page sid
   await page.screenshot({ path: "test-results/screens/allow-mistakes-narrow.png" });
 });
 
-test("hardcore: one mistake loses the puzzle — the board locks, the stats show, and the next one comes without scoring", async ({ page }) => {
+test("hardcore: one mistake loses the puzzle — the answer shows and holds until a tap, and the next one comes without scoring", async ({ page }) => {
   await playUnder(page, { allowMistakes: "hardcore" });
   const entry = packOf("classic-easy").puzzles[0]!;
   await page.goto(playUrl("classic-easy", entry.id));
   await readBoard(page);
   await expect(page.locator(".stats")).toContainText("Hardcore");
   const wrong = await slip(page);
+  const wrongDigit = (await cellLocator(page, wrong).locator(".v").textContent())!;
 
   await expect(page.locator('.play[data-lost="true"]')).toBeVisible();
   await expect(cellLocator(page, wrong)).toHaveClass(/wrong/);
@@ -1238,7 +1239,19 @@ test("hardcore: one mistake loses the puzzle — the board locks, the stats show
   await expect(result).toContainText("Game over");
   await expect(result).toContainText("1mistake");
   await expect(result).toContainText("0hints0%solved"); // the givens aren't the player's doing
-  await page.screenshot({ path: "test-results/screens/game-over.png" });
+
+  // The whole answer is on the board: every open square filled, the wrong digit traded with the right one.
+  const answer = cellLocator(page, wrong);
+  await expect(answer).toHaveClass(/swap/);
+  await expect(answer.locator(".v")).toHaveAttribute("data-answer", /^[1-9]$/);
+  await expect(answer.locator(".v")).not.toHaveAttribute("data-answer", wrongDigit);
+  await expect(page.locator(".board .cell .v:empty")).toHaveCount(0);
+  await expect(page.locator(".board .cell.revealed").first()).toBeVisible();
+  expect(await page.locator(".board .cell.revealed").count()).toBeGreaterThan(30);
+  await expect(page.locator(".board .notes .on")).toHaveCount(0);
+  const swapping = await answer.locator(".v").evaluate((el) => getComputedStyle(el).animationName);
+  expect(swapping).toBe("swap-wrong");
+  await expect(page.getByTestId("loss-continue")).toBeEnabled();
 
   // No way back: the controls go quiet, and their keys do nothing either.
   await expect(page.getByTestId("tool-undo")).toHaveCSS("pointer-events", "none");
@@ -1248,9 +1261,18 @@ test("hardcore: one mistake loses the puzzle — the board locks, the stats show
   await page.keyboard.press("h");
   await expect(page.getByTestId("hint-sheet")).not.toHaveClass(/open/);
 
-  // The next board arrives by itself, at the same level, and nothing was scored.
+  // It waits for the player: well past when a solve would have moved on, the board and stats are still here.
+  await page.waitForTimeout(3500);
+  await expect(page.locator('.play[data-lost="true"]')).toBeVisible();
+  await expect(result).toBeVisible();
+  await expect(page.locator(".callout")).toHaveCount(0); // GAME OVER has cleared the board to read
+  await page.screenshot({ path: "test-results/screens/game-over.png" });
+
+  // A tap moves on, to the next board at the same level, and nothing was scored.
   const givens = () => page.$$eval(".board .cell", (els) => els.map((el) => el.querySelector(".v")?.textContent || "0").join(""));
+  await page.getByTestId("loss-continue").click();
   await expect(page.locator(".play:not([data-lost])")).toBeVisible({ timeout: 8000 });
+  await expect(result).toHaveCount(0);
   await landed(page);
   expect(await givens()).not.toBe(entry.g);
   await expect(page.locator(".play .title")).toContainText("Lv 1");
@@ -1266,14 +1288,17 @@ test("a lost game can't be picked up again: leaving, or the menu, offers no way 
   await readBoard(page);
   await slip(page);
   await expect(page.locator('.play[data-lost="true"]')).toBeVisible();
-  await page.getByRole("button", { name: "Menu", exact: true }).click();
+  // The cover keeps fingers off these, but they're still there for a keyboard.
+  const press = (label: string) => page.evaluate((l) => document.querySelector<HTMLElement>(`.topbar [aria-label="${l}"]`)!.click(), label);
+  await press("Menu");
   const menu = page.getByRole("dialog", { name: "Game menu" });
   await expect(menu.getByRole("button", { name: "New puzzle" })).toBeVisible();
   await expect(menu.getByRole("button", { name: "Restart this puzzle" })).toHaveCount(0);
   await expect(menu.getByRole("button", { name: "Pause" })).toHaveCount(0);
   await page.keyboard.press("Escape");
-  await page.getByTestId("back").click();
+  await press("Back to menu");
   await expect(page.getByTestId("resume-classic")).toHaveCount(0);
+  await expect(page.getByTestId("result")).toHaveCount(0); // the held stats don't follow them home
   await page.reload();
   await expect(page.getByTestId("resume-classic")).toHaveCount(0);
 });
@@ -1291,6 +1316,65 @@ test("limited: the box's number of mistakes are forgiven, and one more loses", a
   await expect(page.getByTestId("result")).toContainText("2mistakes");
 });
 
+test("closing the app on a Game Over doesn't bring the lost game back", async ({ page }) => {
+  await playUnder(page, { allowMistakes: "hardcore" });
+  await page.goto(playUrl("classic-easy"));
+  await readBoard(page);
+  await slip(page);
+  await expect(page.getByTestId("loss-continue")).toBeEnabled();
+  await page.goto("/");
+  await expect(page.getByTestId("resume-classic")).toHaveCount(0);
+});
+
+test("a fast tap can't skip the Game Over: the way on opens a moment after the loss", async ({ page }) => {
+  await playUnder(page, { allowMistakes: "hardcore" });
+  await page.goto(playUrl("classic-easy"));
+  await readBoard(page);
+  await slip(page);
+  const go = page.getByTestId("loss-continue");
+  await expect(go).toBeDisabled();
+  await expect(go).toBeEnabled();
+  await expect(go).toBeFocused();
+  await page.keyboard.press("Enter"); // and a keyboard moves on too
+  await expect(page.locator(".play:not([data-lost])")).toBeVisible({ timeout: 8000 });
+});
+
+/** The answer held still: the right digit showing, the wrong one small beside it, nothing pulsing. */
+async function heldStill(page: Page): Promise<void> {
+  await page.goto(playUrl("classic-easy"));
+  await readBoard(page);
+  const wrong = await slip(page);
+  const v = cellLocator(page, wrong).locator(".v");
+  await expect(cellLocator(page, wrong)).toHaveClass(/swap/);
+  expect(await v.evaluate((el) => getComputedStyle(el).animationName)).toBe("none");
+  expect(await v.evaluate((el) => getComputedStyle(el, "::after").animationName)).toBe("none");
+  expect(await v.evaluate((el) => getComputedStyle(el, "::after").opacity)).toBe("1");
+  expect(await v.evaluate((el) => getComputedStyle(el, "::before").content)).toMatch(/[1-9]/);
+}
+
+test("on a wide screen a click in the margin beside the game moves on from a Game Over too", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await playUnder(page, { allowMistakes: "hardcore" });
+  await page.goto(playUrl("classic-easy"));
+  await readBoard(page);
+  await slip(page);
+  await expect(page.getByTestId("loss-continue")).toBeEnabled();
+  await page.mouse.click(30, 400);
+  await expect(page.locator(".play:not([data-lost])")).toBeVisible({ timeout: 8000 });
+});
+
+test("Calm effects hold the answer still", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("cagecoach.settings", JSON.stringify({ allowMistakes: "hardcore", effects: "low" })));
+  await heldStill(page);
+  await page.screenshot({ path: "test-results/screens/game-over-calm.png" });
+});
+
+test("reduced motion holds the answer still", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await playUnder(page, { allowMistakes: "hardcore" });
+  await heldStill(page);
+});
+
 test("a limit counts mistakes even with Flag mistakes off", async ({ page }) => {
   await playUnder(page, { allowMistakes: "hardcore", checkMistakes: false });
   await page.goto(playUrl("classic-easy"));
@@ -1300,19 +1384,34 @@ test("a limit counts mistakes even with Flag mistakes off", async ({ page }) => 
   await expect(page.locator('.play[data-lost="true"]')).toBeVisible();
 });
 
-test("queens hardcore: a wrong queen loses the puzzle and the next board follows", async ({ page }) => {
+test("queens hardcore: a wrong queen loses the puzzle, the answer shows, and a tap brings the next board", async ({ page }) => {
   await playUnder(page, { allowMistakes: "hardcore" });
   await page.goto(playUrl("queens-easy"));
   const cells = page.locator(".qcell");
   await expect(cells.first()).toBeVisible();
   await landed(page);
   await expect(page.locator(".stats")).toContainText("Hardcore");
-  // One row holds one queen, so the second of these is wrong whatever the first was.
-  await cells.nth(0).dblclick();
-  await page.waitForTimeout(450);
-  if (!(await page.locator(".play[data-lost]").count())) await cells.nth(2).dblclick();
+  await cells.nth(2).dblclick(); // this board's first row wants its queen in the first square
   await expect(page.locator('.play[data-lost="true"]')).toBeVisible();
   await expect(page.getByTestId("result")).toContainText("Game over");
+
+  // One crown per row: the answer's, with the wrong queen trading places with the right one.
+  const n = Math.round(Math.sqrt(await cells.count()));
+  await expect(cells.nth(2)).toHaveClass(/swap-out/);
+  await expect(cells.nth(0)).toHaveClass(/swap-in/);
+  await expect(page.locator(".qcell.queen:not(.swap-out)")).toHaveCount(n);
+  const pulse = (c: Locator) => c.locator(".crown").evaluate((el) => getComputedStyle(el).animationName);
+  expect(await pulse(cells.nth(2))).toBe("swap-right");
+  expect(await pulse(cells.nth(0))).toBe("swap-right");
+  await expect(page.locator(".qcell.cross, .qcell.auto-x, .qcell.conflict")).toHaveCount(0);
+  await expect(page.getByTestId("loss-continue")).toBeEnabled();
+
+  await page.waitForTimeout(3500);
+  await expect(page.locator('.play[data-lost="true"]')).toBeVisible();
+  await page.screenshot({ path: "test-results/screens/game-over-queens.png" });
+  // The stats banner is no dead spot: a tap on it moves on like one anywhere else.
+  const banner = (await page.getByTestId("result").boundingBox())!;
+  await page.mouse.click(banner.x + banner.width / 2, banner.y + banner.height / 2);
   await expect(page.locator(".play:not([data-lost])")).toBeVisible({ timeout: 8000 });
   await expect(page.locator(".play .title")).toContainText("Lv 1");
 });

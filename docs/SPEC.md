@@ -245,9 +245,14 @@ marks anything (all three modes).
 - Mistake: shake, red sparks, muted thud, explanation toast.
 - **Allow mistakes** (Settings → Play): *Yes* (the default) never ends a game; *Limited* shows a
   number box (default 3, 1–99) and forgives that many; *Hardcore* forgives none. One mistake over
-  the limit loses the puzzle on the spot: GAME OVER, the board locks (no undo, hints or restart),
-  the results banner shows time, mistakes, hints and the % of the open squares solved, and ~2.4 s later the next board
-  arrives as it does after a solve. Nothing is scored: no solve, level, best time or history entry,
+  the limit loses the puzzle on the spot: GAME OVER, and the board locks (no undo, hints or
+  restart). Then the answer comes up: every open square fills in, softer than the player's own
+  digits; each wrong digit pulses between itself (red) and the right one (green), and in Queens
+  each wrong queen trades places with its row's. Calm effects and reduced motion hold this still,
+  the right digit with the wrong one small beside it. The results banner shows time, mistakes,
+  hints and the % of the open squares solved, and stays. Unlike a solve, nothing moves on until
+  the player taps (anywhere, or Enter; it opens ~1.2 s in, so a fast tap can't skip it), then the
+  next board arrives. Nothing is scored: no solve, level, best time or history entry,
   and the lost game's save is cleared, so it can't be resumed; it stays in the draw for later. The
   stats line shows `Mistakes 1 / 3`, or `Hardcore`. A limit needs mistakes counted, so it holds
   *Flag mistakes instantly* on. Undoing a mistake doesn't take it back, a queens scratch counts
